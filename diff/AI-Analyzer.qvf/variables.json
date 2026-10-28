@@ -1,0 +1,542 @@
+[
+  {
+    "qInfo": {
+      "qId": "0ec0244e-c655-4d16-b5cd-dc7767287429",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "assistantTableName",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "assistantTable_25"
+  },
+  {
+    "qInfo": {
+      "qId": "8bbff2a8-bbab-4f0a-b31a-75ba02b60952",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vNeutral3",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "#0F6E56"
+  },
+  {
+    "qInfo": {
+      "qId": "e5eab4e5-44fc-4a4b-a9ac-2c2185ea51b4",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "AnalysisAgentEnabled",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "1",
+    "tags": []
+  },
+  {
+    "qInfo": {
+      "qId": "7c74dd03-daac-4e4d-b527-c8110a744912",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vThreadId",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "6b73905f-1ed8-4e55-a793-5a18b1dfa7a2"
+  },
+  {
+    "qInfo": {
+      "qId": "678b3cbb-9c07-44db-8f7d-77472e2aaca8",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "placeholderFieldName",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "placeholder_25"
+  },
+  {
+    "qInfo": {
+      "qId": "0f5e0304-8eab-448b-aff2-991d1cdbe915",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vNegative",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "#F09595"
+  },
+  {
+    "qInfo": {
+      "qId": "ac522836-72f3-4b9c-aa86-5bf0f8c24cd9",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vAppId",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "1"
+  },
+  {
+    "qInfo": {
+      "qId": "eaa288f2-a37d-4de2-92df-db1f58595406",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vAnswersLegacyAnswersQVD_MaxTimestamp",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "2026-03-01T00:00:00Z"
+  },
+  {
+    "qInfo": {
+      "qId": "55447a0d-ce8b-48c7-8c50-5609aad893b1",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vNeutral1",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "#5DCAA5"
+  },
+  {
+    "qInfo": {
+      "qId": "1d0cc16d-0d9a-4a09-9fe4-1ea37b10fa3f",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "concatFieldName",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "Concat4"
+  },
+  {
+    "qInfo": {
+      "qId": "d74ad080-aee9-4461-9700-c7f52a81f652",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vISO_8601_Date_Range",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "\u0026eventTime=2026-01-14T00:00:00Z/9999-01-01T00:00:00Z"
+  },
+  {
+    "qInfo": {
+      "qId": "b8ed3169-7ff9-467d-b90c-f8650fda5e96",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vCountofThreadsRowCount",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "0"
+  },
+  {
+    "qInfo": {
+      "qId": "10986217-f4d4-4d03-89d1-7ad51a99d607",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "app_count",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "613"
+  },
+  {
+    "qInfo": {
+      "qId": "d9713d23-c489-4068-b8f1-ac97adc5ece2",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vPositive",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "#97C459"
+  },
+  {
+    "qInfo": {
+      "qId": "da2ebb2a-6c86-4c26-b8fd-b4aa99e6da0c",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vTest",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "tags": []
+  },
+  {
+    "qInfo": {
+      "qId": "3dffaf87-ceb8-45e3-9dd0-6e4c007193e4",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "messages_count",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "-1"
+  },
+  {
+    "qInfo": {
+      "qId": "1a11d656-2580-4cad-9c67-7a52b99a16d5",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vNeutral2",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "#1D9E75"
+  },
+  {
+    "qInfo": {
+      "qId": "97767991-fd32-4bbe-a693-28540fc66c1e",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "dropField",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "Concat3"
+  },
+  {
+    "qInfo": {
+      "qId": "04ed5925-4123-47b7-b513-63e6ded296cd",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vCounter",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "0"
+  },
+  {
+    "qInfo": {
+      "qId": "4610862b-a955-4a96-a391-cbc6d260d644",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vFieldsToIgnore_MonthSerial",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "[Year-Month]=, Year=, Month=, Quarter=, [Quarter-Year]=, [Day of Month]=",
+    "tags": []
+  },
+  {
+    "qInfo": {
+      "qId": "0dc19b8a-fcd7-4be3-b7bd-e039a20d3bb6",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "applicationTableName",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "applicationTable_25"
+  },
+  {
+    "qInfo": {
+      "qId": "3d28fb09-b668-4704-95c0-c11118d892f7",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vAnswersLegacyQuestionsQVD_DateFilter",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "\u0026filter=createdAt%20ge%20Q%222026-03-01T00%3A00%3A00Z%22"
+  },
+  {
+    "qInfo": {
+      "qId": "4840e125-a6d2-4cda-a866-9330e3ec614e",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vUniqueKey",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "GB3No55mRF9tL0KpYMwXtMIdOv0mCHfe"
+  },
+  {
+    "qInfo": {
+      "qId": "b596ae8c-d359-4ba5-a95d-0c9e7edbfd5e",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vIncrementalQVDsAvailable",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "0"
+  },
+  {
+    "qInfo": {
+      "qId": "d2cce0c6-222a-4b8d-9dcf-9c376c2bfc7a",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vInfoBubbles",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "0",
+    "tags": []
+  },
+  {
+    "qInfo": {
+      "qId": "991f2268-7514-4342-8321-3ff4288582d3",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vParent_or_Child",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "P"
+  },
+  {
+    "qInfo": {
+      "qId": "bee0b622-e8ac-4fa5-8946-d664c0ad1719",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vMulti_Tenant_Mode",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "1"
+  },
+  {
+    "qInfo": {
+      "qId": "06baa093-26a6-4273-ac75-08a49dec366f",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vFile",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "lib://Dev - Eamonn:ai_monitoring_s3/ai_monitoring_multi_tenant9/wyEvZ_Xb9vajBFvU1Npc5gggxru6R_Ye/Spaces.qvd"
+  },
+  {
+    "qInfo": {
+      "qId": "59f00a6f-d4e8-4a3d-a268-cddcf1047165",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vTable",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "Applications"
+  },
+  {
+    "qInfo": {
+      "qId": "bc35ea8c-fd40-4aa5-984c-d6ac219dbe09",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vTableNameFromFile",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "Spaces"
+  },
+  {
+    "qInfo": {
+      "qId": "acf92689-c7e5-4ee9-9e25-6b5a7baf85b1",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vTenantPath",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "lib://Dev - Eamonn:ai_monitoring_s3/ai_monitoring_multi_tenant9/wyEvZ_Xb9vajBFvU1Npc5gggxru6R_Ye/"
+  },
+  {
+    "qInfo": {
+      "qId": "e46990e1-ddbb-40e2-bcb4-cfe75f8d0ecb",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vTableCount",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "8"
+  },
+  {
+    "qInfo": {
+      "qId": "7b5bf6de-3b4a-4eff-96ea-92ac28341ae5",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vTenantId_FromStorage",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "wyEvZ_Xb9vajBFvU1Npc5gggxru6R_Ye"
+  },
+  {
+    "qInfo": {
+      "qId": "28789b86-6f8a-4412-abc9-f59b67237617",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vPriorMonthMTD",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "[Day of Month]= {\"\u003c=$(=max( {$\u003c [Month Serial] = {\"$(=max([Month Serial]))\"} \u003e} [Day of Month] ))\"}\r\n,[Month Serial]={\"$(=max([Month Serial])-1)\"}\n,Year=\n,Month=\n,[Year-Month]\n,[Quarter]=\n,[Quarter-Year]=",
+    "tags": []
+  },
+  {
+    "qInfo": {
+      "qId": "abc87bb0-aa16-4932-ac5a-3fa77052d403",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vPriorMonthFull",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "[Day of Month]=\r\n,[Month Serial]={\"$(=max([Month Serial])-1)\"}\n,Year=\n,Month=\t\n,[Year-Month]\n,[Quarter]=\n,[Quarter-Year]=",
+    "tags": []
+  },
+  {
+    "qInfo": {
+      "qId": "b53f8918-7d1e-4eb6-a890-4b5ce1aa52db",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vCurrentMonth",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "[Day of Month]=\r\n,[Month Serial]={\"$(=max([Month Serial]))\"}\n,Year=\n,Month=\t\n,[Year-Month]\n,[Quarter]=\n,[Quarter-Year]=",
+    "tags": []
+  },
+  {
+    "qInfo": {
+      "qId": "ee9518fc-cf3d-4549-8d76-aa8994934e9f",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vQuotaYes",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "[Quota Flag]={1}",
+    "tags": []
+  },
+  {
+    "qInfo": {
+      "qId": "20ffabb0-8873-4f5e-bc8a-027c30cbaaa0",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vQuotaNo",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "[Quota Flag]-={1}",
+    "tags": []
+  }
+]

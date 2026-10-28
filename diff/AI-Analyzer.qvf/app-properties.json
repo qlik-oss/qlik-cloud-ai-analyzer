@@ -1,0 +1,10 @@
+{
+  "qTitle": "AI Analyzer",
+  "qThumbnail": {
+    "qUrl": "/api/v1/apps/<appId>/media/files/AI Analyzer Thumbnail.png"
+  },
+  "description": "",
+  "qUsage": "ANALYTICS",
+  "published": false,
+  "hassectionaccess": false
+}

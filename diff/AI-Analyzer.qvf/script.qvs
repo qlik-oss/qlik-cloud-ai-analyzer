@@ -1,0 +1,3975 @@
+///$tab Main
+SET ThousandSep=',';
+SET DecimalSep='.';
+SET MoneyThousandSep=',';
+SET MoneyDecimalSep='.';
+SET MoneyFormat='$ ###0.00;-$ ###0.00';
+SET TimeFormat='h:mm:ss TT';
+SET DateFormat='M/D/YYYY';
+SET TimestampFormat='M/D/YYYY h:mm:ss[.fff] TT';
+SET FirstWeekDay=6;
+SET BrokenWeeks=1;
+SET ReferenceDay=0;
+SET FirstMonthOfYear=1;
+SET CollationLocale='en-US';
+SET CreateSearchIndexOnReload=1;
+SET MonthNames='Jan;Feb;Mar;Apr;May;Jun;Jul;Aug;Sep;Oct;Nov;Dec';
+SET LongMonthNames='January;February;March;April;May;June;July;August;September;October;November;December';
+SET DayNames='Mon;Tue;Wed;Thu;Fri;Sat;Sun';
+SET LongDayNames='Monday;Tuesday;Wednesday;Thursday;Friday;Saturday;Sunday';
+SET NumericalAbbreviation='3:k;6:M;9:G;12:T;15:P;18:E;21:Z;24:Y;-3:m;-6:μ;-9:n;-12:p;-15:f;-18:a;-21:z;-24:y';
+
+
+ 
+///$tab Variable Set Up / Config
+/*
+	1. Set the name of the data connection for this application, you must choose a REST connection
+    to an existing Qlik Cloud API for this tenant.  A good connection to choose is the connection
+    used by the other monitoring apps.
+*/
+let vDataConnection 			= '';
+
+LIB CONNECT TO '$(vDataConnection)';
+/*
+	2. Enter the name of the Space where the resulting QVDs of this app will be stored.  This does
+    not need to be the same space that this app is stored in.
+*/
+LET vQVDSpaceName				= '';	
+/*
+	3. Enter the name of the folder you wish to store the QVDs in.
+*/
+LET vQVDFolderName				= 'AI Monitoring QVDs';
+/*
+	4. No need to change this variable, by default it will use the information from #2 and #3
+*/
+LET vQVDFullPath				='lib://$(vQVDSpaceName):DataFiles/$(vQVDFolderName)/';
+/*
+	5. Set the 'incremental mode', a value of 1 is 'on', and the app will attempt to only pull new 
+    values (where appropriate).  A value of 0 is 'off' and the app will build full QVDs each reload.
+*/
+LET vIncrementalMode			= 1;
+
+let vu_multi_tenant_enabled 	= 0;  	// set to 0 for OFF, 1 for ON
+									  	// if running in a multi tenant set up,
+                                      	// ALL tenants must be set to vu_multi_tenant_enabled=1
+
+let vu_is_parent_app 			= 0;  // if vu_multi_tenant_enabled=0, the value here is not relevant
+										// if vu_multi_tenant_enabled=1 ... 
+                                        // set to 1 if this is the parent  application (roll up, reporting)
+                                        // set to 0 for child applications
+                                        
+let vMulti_Tenant_Storage_Location = '';
+									// 'lib://<space name>:<cloud storage connection>/<folder name>/'
+                                    
+
+
+// No need to touch variables beneath this line
+// -----------------------------------------------------------------------------------------------
+//
+//
+let vAppVersion					='1.0';
+let vTenantName 				= GetSysAttr('tenantUrlAlias');
+let vTenantId					= GetSysAttr('tenantId');
+LET vAuditQueryAddedDate		= MakeDate(2024,9,1); // The audit query date was added mid-September, so the numbers will likely not be whole for that month
+LET v90BackGMT				 	= Date(Today(1) - 90);
+SET vu_initial_days_back 		= 90;
+
+LET vInitialDaysBack			= If($(vu_initial_days_back)>0 AND $(vu_initial_days_back)<=90,Date(Today(1) - $(vu_initial_days_back)),$(v90BackGMT)); // If there is an initial days back setting that is between 0 and 90, set it, otherwise set it to 90
+LET vInitialDaysBack			= If(Date('$(vInitialDaysBack)')<=Date('$(vAuditQueryAddedDate)'),Date('$(vAuditQueryAddedDate)'),Date('$(vInitialDaysBack)')); // reset to October 1st 2024 if less than setting to account for when query event data was added
+
+
+set hideprefix = '%';
+
+
+//clear all run time variables
+let vAnswersQuestionsQVD_Exists 				= 0;
+let vAnswersQVD_Exists 							= 0;
+let vAnswersLegacyAnswersAuditQVD_Exists 		= 0;
+let vAnswersLegacyAnswersQuestionsQVD_Exists	= 0;
+let vAnswersLegacyAnswersAnswersQVD_Exists		= 0;
+let vAnswersQuestionsQuotaQVD_Exists 			= 0;
+let vMCPExecutionsQVD_Exists					= 0;
+let vMCPAggrQVD_Exists							= 0;
+let vAnswersAuditQVD_Exists						= 0;
+
+let vDataExists_AppsWithAnswersEnabled 			= 0;
+let vDataExists_Assistants 						= 0;
+let vDataExists_AgenticAnswersMessages 			= 0;
+let vDataExists_LegacyAnswersAuditData 			= 0;
+let vDataExists_MCPAuditData 					= 0;
+let vDataExists_LegacyAssistant 				= 0;
+let vDataExists_LegacyAnswers 					= 0;
+let vDataExists_MessagesTable 					= 0;
+let vDataExists_AnswersAuditTable				= 0;
+
+let vFact_AgenticAnswers						= 0;
+let vFact_LegacyAnswers							= 0;
+let vFact_AnswersAudit							= 0;
+let vFact_MCPAggr								= 0;
+let vFact_NewAnswersAudit						= 0;
+
+let vTableRowCount								= 0;
+
+
+/*
+	Incremental logic
+*/
+//
+// --------------------------------------------------------------------------------------------------------
+// DO NOT CHANGE BELOW ... DO NOT CHANGE BELOW ... DO NOT CHANGE BELOW ... DO NOT CHANGE BELOW ...
+// --------------------------------------------------------------------------------------------------------
+//
+
+
+    
+    
+    
+
+    
+//incremental variables for Qlik Answers (Questions)
+	if $(vIncrementalMode)=1 then
+    	let vAnswersQuestionsQVD_Exists = 
+        	if(filesize('$(vQVDFullPath)ai_monitoring_Extract_AgenticAnswersMessages.qvd') > 0
+            		and QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_AgenticAnswersMessages.qvd') > 0
+                    	,1
+                        ,0);
+            	if $(vAnswersQuestionsQVD_Exists) = 1 then
+                	answers_max_date_time:
+                    LOAD
+                        max(%DateTime) as max_date_time
+                    FROM [$(vQVDFullPath)ai_monitoring_Extract_AgenticAnswersMessages.qvd]
+                    (qvd);
+					let vAnswersQuestionsQVD_MaxTimestamp = date(peek('max_date_time',0,'answers_max_date_time'),'YYYY-MM-DD')&'T'&time(peek('max_date_time',0,'answers_max_date_time'),'hh:mm:ss')&'Z';
+                    	drop table answers_max_date_time;
+                elseif $(vAnswersQuestionsQVD_Exists) = 0 then
+                	let vAnswersQuestionsQVD_MaxTimestamp = date(floor(monthstart(now(),-2)),'YYYY-MM-DD')&'T00:00:00Z';
+                end if
+    elseif $(vIncrementalMode)= 0 then
+    	let vAnswersQuestionsQVD_MaxTimestamp = date(floor(monthstart(now(),-2)),'YYYY-MM-DD')&'T00:00:00Z';
+    end if
+    
+//incremental variables for Qlik Answers (Answers)
+	if $(vIncrementalMode)=1 then
+    	let vAnswersQVD_Exists = 
+        	if(filesize('$(vQVDFullPath)ai_monitoring_Extract_AgenticAnswersAnswers.qvd') > 0
+            	and QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_AgenticAnswersAnswers.qvd') > 0
+                    	,1
+                        ,0);
+            	if $(vAnswersQVD_Exists) = 1 then
+                	max_date_time:
+                    LOAD
+                        max(%DateTime_Answer) as max_date_time
+                    FROM [$(vQVDFullPath)ai_monitoring_Extract_AgenticAnswersAnswers.qvd]
+                    (qvd)
+                    	where [%SourceType] = 'Normal';
+					let vAnswersQVD_MaxTimestamp = date(peek('max_date_time',0,'max_date_time'),'YYYY-MM-DD')&'T'&time(peek('max_date_time',0,'max_date_time'),'hh:mm:ss')&'Z';
+                    	drop table max_date_time;
+                elseif $(vAnswersQVD_Exists) = 0 then
+                	let vAnswersQVD_MaxTimestamp = date(floor(monthstart(now(),-2)),'YYYY-MM-DD')&'T00:00:00Z';
+                end if
+    elseif $(vIncrementalMode)= 0 then
+    	let vAnswersQVD_MaxTimestamp = date(floor(monthstart(now(),-2)),'YYYY-MM-DD')&'T00:00:00Z';
+    end if    
+    
+    
+//incremental variables for Qlik Answers (Legacy Audit)
+	if $(vIncrementalMode)=1 then
+    	let vAnswersLegacyAnswersAuditQVD_Exists = 
+        	if(filesize('$(vQVDFullPath)ai_monitoring_Extract_LegacyAnswersAudit.qvd') > 0
+            	and QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_LegacyAnswersAudit.qvd') > 0
+                    	,1
+                        ,0);
+            	if $(vAnswersLegacyAnswersAuditQVD_Exists) = 1 then
+                	max_date_time:
+                    LOAD
+                        max(%DateTime_LegacyAudit) as max_date_time
+                    FROM [$(vQVDFullPath)ai_monitoring_Extract_LegacyAnswersAudit.qvd]
+                    (qvd);
+					let vAnswersLegacyAnswersAuditQVD_MaxTimestamp = date(peek('max_date_time',0,'max_date_time'),'YYYY-MM-DD')&'T'&time(peek('max_date_time',0,'max_date_time'),'hh:mm:ss')&'Z';
+                    	drop table max_date_time;
+                elseif $(vAnswersLegacyAnswersAuditQVD_Exists) = 0 then
+                	let vAnswersLegacyAnswersAuditQVD_MaxTimestamp = date(floor(monthstart(now(),-2)),'YYYY-MM-DD')&'T00:00:00Z';
+                end if
+    elseif $(vIncrementalMode)= 0 then
+    	let vAnswersLegacyAnswersAuditQVD_MaxTimestamp = date(floor(monthstart(now(),-2)),'YYYY-MM-DD')&'T00:00:00Z';
+    end if    
+    
+//incremental variables for Qlik Answers (Audit)
+	if $(vIncrementalMode)=1 then
+    	let vAnswersAuditQVD_Exists = 
+        	if(filesize('$(vQVDFullPath)ai_monitoring_Extract_AnswersAudit.qvd') > 0
+            	and QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_AnswersAudit.qvd') > 0
+                    	,1
+                        ,0);              
+            	if $(vAnswersAuditQVD_Exists) = 1 then
+                	max_date_time:
+                    LOAD
+                        max(%DateTime_AnswersAudit) as max_date_time
+                    FROM [$(vQVDFullPath)ai_monitoring_Extract_AnswersAudit.qvd]
+                    (qvd);
+					let vAnswersAuditQVD_MaxTimestamp = date(peek('max_date_time',0,'max_date_time'),'YYYY-MM-DD')&'T'&time(peek('max_date_time',0,'max_date_time'),'hh:mm:ss')&'Z';
+                    	drop table max_date_time;
+                elseif $(vAnswersAuditQVD_Exists) = 0 then
+                	let vAnswersAuditQVD_MaxTimestamp = date(floor(monthstart(now(),-2)),'YYYY-MM-DD')&'T00:00:00Z';
+                end if
+    elseif $(vIncrementalMode)= 0 then
+    	let vAnswersAuditQVD_MaxTimestamp = date(floor(monthstart(now(),-2)),'YYYY-MM-DD')&'T00:00:00Z';
+    end if    
+    
+//incremental variables for Qlik Answers (Legacy Questions)
+	if $(vIncrementalMode)=1 then
+    	let vAnswersLegacyAnswersQuestionsQVD_Exists = 
+        	if(filesize('$(vQVDFullPath)ai_monitoring_Extract_LegacyQuestionsAndAnswers.qvd') > 0
+            	and QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_LegacyQuestionsAndAnswers.qvd') > 0
+                    	,1
+                        ,0);
+            	if $(vAnswersLegacyAnswersQuestionsQVD_Exists) = 1 then
+                	max_date_time:
+                    LOAD
+                        max(%DateTime_LegacyAnswersQuestions) as max_date_time
+                    FROM [$(vQVDFullPath)ai_monitoring_Extract_LegacyQuestionsAndAnswers.qvd]
+                    (qvd);
+					let vAnswersLegacyAnswersQuestionsQVD_MaxTimestamp = date(peek('max_date_time',0,'max_date_time'),'YYYY-MM-DD')&'T'&time(peek('max_date_time',0,'max_date_time'),'hh:mm:ss')&'Z';
+                    	drop table max_date_time;
+                elseif $(vAnswersLegacyAnswersQuestionsQVD_Exists) = 0 then
+                	let vAnswersLegacyAnswersQuestionsQVD_MaxTimestamp = date(floor(monthstart(now(),-2)),'YYYY-MM-DD')&'T00:00:00Z';
+                end if
+    elseif $(vIncrementalMode)= 0 then
+    	let vAnswersLegacyAnswersQuestionsQVD_MaxTimestamp = date(floor(monthstart(now(),-2)),'YYYY-MM-DD')&'T00:00:00Z';
+    end if 
+    
+//incremental variables for Qlik Answers (Legacy Questions)
+	if $(vIncrementalMode)=1 then
+    	let vAnswersLegacyAnswersAnswersQVD_Exists = 
+        	if(filesize('$(vQVDFullPath)ai_monitoring_Extract_LegacyQuestionsAndAnswers.qvd') > 0
+            	and QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_LegacyQuestionsAndAnswers.qvd') > 0
+                    	,1
+                        ,0);
+    end if     
+
+//incremental variables for Questions Quota
+	if $(vIncrementalMode)=1 then
+    	let vAnswersQuestionsQuotaQVD_Exists = 
+        	if(filesize('$(vQVDFullPath)ai_monitoring_Extract_Quotas.qvd') > 0
+            	and QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_Quotas.qvd') > 0
+                    	,1
+                        ,0);
+    end if   
+    
+//incremental variables for MCP Executions (Audit endpoint)
+	if $(vIncrementalMode)=1 then
+    	let vMCPExecutionsQVD_Exists = 
+        	if(filesize('$(vQVDFullPath)ai_monitoring_Extract_MCPexecutions.qvd') > 0
+            	and QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_MCPexecutions.qvd') > 0
+                    	,1
+                        ,0);
+            	if $(vMCPExecutionsQVD_Exists) = 1 then
+                	max_date_time:
+                    LOAD
+                        max(%DateTime_MCPExecutions) as max_date_time
+                    FROM [$(vQVDFullPath)ai_monitoring_Extract_MCPexecutions.qvd]
+                    (qvd);
+					let vMCPExecutionsQVD_MaxTimestamp = date(peek('max_date_time',0,'max_date_time'),'YYYY-MM-DD')&'T'&time(peek('max_date_time',0,'max_date_time'),'hh:mm:ss')&'Z';
+                    	drop table max_date_time;
+                elseif $(vMCPExecutionsQVD_Exists) = 0 then
+                	let vMCPExecutionsQVD_MaxTimestamp = date(floor(monthstart(now(),-2)),'YYYY-MM-DD')&'T00:00:00Z';
+                end if
+    elseif $(vIncrementalMode)= 0 then
+    	let vMCPExecutionsQVD_MaxTimestamp = date(floor(monthstart(now(),-2)),'YYYY-MM-DD')&'T00:00:00Z';
+    end if
+    
+//incremental variables for MCP Aggr (Audit endpoint)
+	if $(vIncrementalMode)=1 then
+    	let vMCPAggrQVD_Exists = 
+        	if(filesize('$(vQVDFullPath)ai_monitoring_Extract_MCPaggr.qvd') > 0
+            	and QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_MCPaggr.qvd') > 0
+                    	,1
+                        ,0);
+            	if $(vMCPAggrQVD_Exists) = 1 then
+                	max_date_time:
+                    LOAD
+                        max(%DateTime_MCPAggr) as max_date_time
+                    FROM [$(vQVDFullPath)ai_monitoring_Extract_MCPaggr.qvd]
+                    (qvd);
+					let vMCPAggrQVD_MaxTimestamp = date(peek('max_date_time',0,'max_date_time'),'YYYY-MM-DD')&'T'&time(peek('max_date_time',0,'max_date_time'),'hh:mm:ss')&'Z';
+                    	drop table max_date_time;
+                elseif $(vMCPAggrQVD_Exists) = 0 then
+                	let vMCPAggrQVD_MaxTimestamp = date(floor(monthstart(now(),-2)),'YYYY-MM-DD')&'T00:00:00Z';
+                end if
+    elseif $(vIncrementalMode)= 0 then
+    	let vMCPAggrQVD_MaxTimestamp = date(floor(monthstart(now(),-2)),'YYYY-MM-DD')&'T00:00:00Z';
+    end if    
+
+
+
+///$tab Tenant Info and Initial Checks
+/*
+	Check to see if cross regional inference is turned on, exit script if it is not
+*/
+    RestConnectorMasterTable:
+    SQL SELECT 
+        "tenantId",
+        "crossRegionDataProcessing"
+    FROM JSON (wrap on) "root"
+    WITH CONNECTION (
+                URL "https://$(vTenantName)/api/v1/tenant-settings"
+        );
+
+    [root]:
+    LOAD	
+        [tenantId],
+        [crossRegionDataProcessing]
+    RESIDENT RestConnectorMasterTable;
+
+    DROP TABLE RestConnectorMasterTable;
+
+    let vCrossRegionInference_Enabled = if(peek('crossRegionDataProcessing',0,'root')='False',0,1);
+        drop table root;
+
+    if $(vCrossRegionInference_Enabled) = 0 then
+        trace .......................................;
+        trace .......................................;
+        trace Exiting Script, this monitoring app requires Cross Region Inference to be enabled in your tenant.;
+        trace .......................................;
+        trace .......................................;
+        exit script    
+    end if 
+/* using /licenses/overview endpoint to get license number and
+		capability bank id
+*/
+RestConnectorMasterTable:
+SQL SELECT 
+	"licenseNumber",
+	"capabilityBankId",
+	"__KEY_root"
+FROM JSON (wrap on) "root" PK "__KEY_root"
+WITH CONNECTION (
+        URL "https://$(vTenantName)/api/v1/licenses/overview"
+);
+
+license_and_capability_bank_id:
+LOAD	
+	[licenseNumber],
+	[capabilityBankId]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__KEY_root]);
+
+DROP TABLE RestConnectorMasterTable;
+
+let vLicenseNumber = Peek('licenseNumber', 0, 'license_and_capability_bank_id');
+let vCapabilityBankId = Peek('capabilityBankId', 0, 'license_and_capability_bank_id');
+
+drop table license_and_capability_bank_id;
+
+
+/*
+	Simple 1 record checks on various tables to see if any records exist, the result of which is used 
+    later on to direct the script logic.
+    
+    ===== DATA EXISTENCE CHECKS =====
+    
+*/
+
+
+
+
+
+   
+//
+//	Check record count for applications that have answers enabled
+//
+    RestConnectorMasterTable:
+    SQL SELECT 
+        "id"
+    FROM JSON (wrap off) "apps"
+        WITH CONNECTION (
+            URL "https://$(vTenantName)/api/v1/nlsearch/apps/semantic?limit=100"
+    );
+
+    [tmp]:
+    LOAD	
+        [id]
+    RESIDENT RestConnectorMasterTable;
+        DROP TABLE RestConnectorMasterTable;
+
+    [appsWithAnswersEnabled_recordCheck]:
+    LOAD	
+        count(id) as recordCount
+    RESIDENT tmp;
+        DROP TABLE tmp;
+
+    let vDataExists_AppsWithAnswersEnabled = alt(peek('recordCount',0,'appsWithAnswersEnabled_recordCheck'),0);
+    drop table appsWithAnswersEnabled_recordCheck;
+//
+//	Check record count for assistants
+//
+    RestConnectorMasterTable:
+    SQL SELECT 
+        "__KEY_root",
+        (SELECT 
+            "id"
+        FROM "data" PK "__KEY_data" FK "__FK_data")
+    FROM JSON (wrap on) "root" PK "__KEY_root"
+        WITH CONNECTION (
+            URL "https://$(vTenantName)/api/v1/assistants?limit=1"
+    );
+    [tmp]:
+    LOAD	
+        [id]
+    RESIDENT RestConnectorMasterTable;
+        DROP TABLE RestConnectorMasterTable;
+
+    [assistants_recordCheck]:
+    LOAD	
+        count(id) as recordCount
+    RESIDENT tmp;
+        DROP TABLE tmp;
+
+    let vDataExists_Assistants = alt(peek('recordCount',0,'assistants_recordCheck'),0);
+    drop table assistants_recordCheck;
+//
+//	Check record count for agentic answers messages
+//
+    RestConnectorMasterTable:
+    SQL SELECT 
+        "__KEY_root",
+        (SELECT 
+            "id" AS "id_u3"
+        FROM "data" PK "__KEY_data" FK "__FK_data")  
+    FROM JSON (wrap on) "root" PK "__KEY_root"
+        WITH CONNECTION (
+            URL "https://$(vTenantName)/api/v1/cloud-assistants/threads/messages?limit=100"
+    );
+    [tmp]:
+    LOAD	
+        [id_u3]
+    RESIDENT RestConnectorMasterTable;
+        DROP TABLE RestConnectorMasterTable;
+
+    [agenticAnswersMessages_recordCheck]:
+    LOAD	
+        count(id_u3) as recordCount
+    RESIDENT tmp;
+        DROP TABLE tmp;
+
+    let vDataExists_AgenticAnswersMessages = alt(peek('recordCount',0,'agenticAnswersMessages_recordCheck'),0);
+    drop table agenticAnswersMessages_recordCheck;
+//
+//	Check for legacy Answers in the audit endpoint
+//
+    RestConnectorMasterTable:
+    SQL SELECT 
+        "__KEY_root",
+        (SELECT 
+            "id"
+        FROM "data" PK "__KEY_data" FK "__FK_data")
+    FROM JSON (wrap on) "root" PK "__KEY_root"
+       WITH CONNECTION (
+       URL "https://$(vTenantName)/api/v1/audits?limit=1&sort=-eventTime&source=com.qlik/assistant&eventType=com.qlik.v1.assistant.queryexecuted"
+    );
+    [tmp]:
+    LOAD	
+        [id]
+    RESIDENT RestConnectorMasterTable;
+        DROP TABLE RestConnectorMasterTable;
+
+    [legacyAnswersAuditData_recordCheck]:
+    LOAD	
+        count(id) as recordCount
+    RESIDENT tmp;
+        DROP TABLE tmp;
+
+    let vDataExists_LegacyAnswersAuditData = alt(peek('recordCount',0,'legacyAnswersAuditData_recordCheck'),0);
+    drop table legacyAnswersAuditData_recordCheck;
+    
+//
+//	Check for Answers in the audit endpoint
+//
+    RestConnectorMasterTable:
+    SQL SELECT 
+        "__KEY_root",
+        (SELECT 
+            "id"
+        FROM "data" PK "__KEY_data" FK "__FK_data")
+    FROM JSON (wrap on) "root" PK "__KEY_root"
+       WITH CONNECTION (
+       URL "https://$(vTenantName)/api/v1/audits?limit=1&sort=-eventTime&source=com.qlik/assistants-gateway&eventType=com.qlik.v1.thread.message.created"
+    );
+    [tmp]:
+    LOAD	
+        [id]
+    RESIDENT RestConnectorMasterTable;
+        DROP TABLE RestConnectorMasterTable;
+
+    [AnswersAuditData_recordCheck]:
+    LOAD	
+        count(id) as recordCount
+    RESIDENT tmp;
+        DROP TABLE tmp;
+
+    let vDataExists_AnswersAuditTable = alt(peek('recordCount',0,'AnswersAuditData_recordCheck'),0);
+    drop table AnswersAuditData_recordCheck;    
+    
+//
+// Check for MCP audit data
+//
+    RestConnectorMasterTable:
+    SQL SELECT 
+        "__KEY_root",
+        (SELECT 
+            "id"
+        FROM "data" PK "__KEY_data" FK "__FK_data")
+    FROM JSON (wrap on) "root" PK "__KEY_root"
+    WITH CONNECTION (
+         URL "https://$(vTenantName)/api/v1/audits?limit=1&sort=-eventTime&eventType=com.qlik.ai.mcp.tool.calls.aggregated"
+      );
+    [tmp]:
+    LOAD	
+        [id]
+    RESIDENT RestConnectorMasterTable;
+        DROP TABLE RestConnectorMasterTable;
+
+    [MCPAuditData_recordCheck]:
+    LOAD	
+        count(id) as recordCount
+    RESIDENT tmp;
+        DROP TABLE tmp;
+
+    let vDataExists_MCPAuditData = alt(peek('recordCount',0,'MCPAuditData_recordCheck'),0);
+    drop table MCPAuditData_recordCheck;
+    
+///$tab Extract QVDs
+/*
+	1. Users QVD
+*/
+Set vParams = 'limit=100';
+
+Do
+
+    RestConnectorMasterTable:
+    SQL SELECT 
+        "__KEY_root",
+        (SELECT 
+            "id" AS "id_u2",
+            "tenantId",
+            "status",
+            "subject",
+            "name" AS "name_u2",
+            "createdAt",
+            "lastUpdatedAt",
+            "created",
+            "lastUpdated",
+            "email",
+            "locale",
+            "zoneinfo",
+            "preferredZoneinfo",
+            "preferredLocale",
+            "clientId",
+            "picture",
+            "__KEY_data",
+            "__FK_data"
+        FROM "data" PK "__KEY_data" FK "__FK_data"),
+        (SELECT 
+            "__KEY_links_u0",
+            "__FK_links_u0",
+            (SELECT 
+                "href" AS "href_u0",
+                "__FK_self_u0"
+            FROM "self" FK "__FK_self_u0"),
+            (SELECT 
+                "href" AS "href_u1",
+                "__FK_next"
+            FROM "next" FK "__FK_next")
+        FROM "links" PK "__KEY_links_u0" FK "__FK_links_u0")
+    FROM JSON (wrap on) "root" PK "__KEY_root"
+            WITH CONNECTION (
+                URL "https://$(vTenantName)/api/v1/users?$(vParams)"
+        );
+
+    [Users]:
+    LOAD
+    	'$(vTenantName)'		as [Tenant Name],
+        '$(vTenantId)'			as [Tenant ID],
+        '$(vTenantId)|'&[id_u2] 				
+        						AS [User Id],
+        [subject]				as [User Subject],
+        [name_u2] 				AS [User Name],    
+        [email]					as [User Email]      
+    // 	[tenantId],
+    // 	[status],
+    // 	[createdAt],
+    // 	[lastUpdatedAt],
+    // 	[created],
+    // 	[lastUpdated],
+    // 	[locale],
+    // 	[zoneinfo],
+    // 	[preferredZoneinfo],
+    // 	[preferredLocale],
+    // 	[clientId],
+    // 	[picture],
+    // 	[__KEY_data],
+    // 	[__FK_data] AS [__KEY_root]
+    RESIDENT RestConnectorMasterTable
+    WHERE NOT IsNull([__FK_data]);
+
+
+    NextURL:
+    LOAD	
+    	[href_u1] as NextURL
+    RESIDENT RestConnectorMasterTable
+    //WHERE NOT IsNull([__FK_next])
+    where len([href_u1])>0
+    ;
+    
+	let vParams = SubField(Peek('NextURL',0,'NextURL'),'?',-1);
+    Let vNextURLRows = NoOfRows('NextURL');
+    
+
+    
+    Drop Table NextURL;
+    DROP TABLE RestConnectorMasterTable;
+    
+Loop While $(vNextURLRows)>0;
+
+let vTableRowCount = 0;
+let vTableRowCount = alt(NoOfRows('Users'),0);
+
+trace === Extract step 1/14, Users table - $(vTableRowCount) rows. ===;
+
+store Users into [$(vQVDFullPath)ai_monitoring_Extract_Users.qvd](qvd);
+drop table Users;
+
+
+
+
+/*
+	2. Applications QVD
+*/
+Set vParams = 'resourceType=app&limit=100';
+
+Do
+    RestConnectorMasterTable:
+    SQL SELECT 
+        "__KEY_root",
+        (SELECT 
+            "name" AS "name_u0",
+            "resourceCustomAttributes",
+            "resourceUpdatedAt",
+            "resourceType",
+            "resourceId",
+            "resourceCreatedAt",
+            "id" AS "id_u0",
+            "createdAt",
+            "updatedAt",
+            "creatorId",
+            "updaterId",
+            "tenantId",
+            "spaceId",
+            "isFavorited" AS "isFavorited_u0",
+            "ownerId" AS "ownerId_u0",
+            "resourceReloadEndTime",
+            "resourceReloadStatus",
+            "description" AS "description_u0",
+            "__KEY_data",
+            "__FK_data"
+        FROM "data" PK "__KEY_data" FK "__FK_data"),
+        (SELECT 
+            "__KEY_links_u0",
+            "__FK_links_u0",
+            (SELECT 
+                "href" AS "href_u3",
+                "__FK_self_u0"
+            FROM "self" FK "__FK_self_u0"),
+            (SELECT 
+                "href" AS "href_u4",
+                "__FK_next"
+            FROM "next" FK "__FK_next")
+        FROM "links" PK "__KEY_links_u0" FK "__FK_links_u0")
+    FROM JSON (wrap on) "root" PK "__KEY_root"
+                WITH CONNECTION (
+                URL "https://$(vTenantName)/api/v1/items?$(vParams)"
+        );
+
+
+    [Applications_tmp]:
+    LOAD
+    	'$(vTenantName)'						as [Tenant Name],
+		'$(vTenantId)'							as [Tenant ID],
+        '$(vTenantId)|'&[resourceId] 			as __KEY_app,
+        if(len([spaceId])>0
+                ,'$(vTenantId)|'&[spaceId]
+                ,'$(vTenantId)|'&'personalSpaceNoId'	)
+                                        		as __KEY_space, 
+
+        '$(vTenantId)|'&[resourceId]			as [Application Id],
+        [name_u0]								as [Application Name],
+        [description_u0]						as [Application Description],
+        [resourceUpdatedAt]						as [Application Last Reload Time],
+        [createdAt]								as [Application Created Date],
+        [resourceUpdatedAt]						as [Application Last Modified Date],
+        '$(vTenantId)|'&[ownerId_u0]							
+        										as [Application Owner Id],
+        if(len([spaceId])>0,'Y','N')			as [Application Published?]
+    RESIDENT RestConnectorMasterTable
+    WHERE NOT IsNull([__FK_data]);
+
+
+    NextURL:
+    LOAD	
+    	[href_u4] as NextURL
+    RESIDENT RestConnectorMasterTable
+    //WHERE NOT IsNull([__FK_next])
+    where len([href_u4])>0
+    ;
+    
+	let vParams = SubField(Peek('NextURL',0,'NextURL'),'?',-1);
+    Let vNextURLRows = NoOfRows('NextURL');
+    
+
+    
+    Drop Table NextURL;
+    DROP TABLE RestConnectorMasterTable;
+    
+Loop While $(vNextURLRows)>0;
+
+	concatenate (Applications_tmp)
+    load
+    	'$(vTenantName)'						as [Tenant Name],
+		'$(vTenantId)'							as [Tenant ID],    	
+        '$(vTenantId)|noAppOrAssistantCatch' 	as __KEY_app,
+        '$(vTenantId)|noAppOrAssistantCatch'	as [__KEY_space]
+	autogenerate(1);        
+
+
+let vTableRowCount = 0;
+let vTableRowCount = alt(NoOfRows('Applications_tmp'),0);
+
+trace === Extract step 2/14, Applications table - $(vTableRowCount) rows. ===;
+
+store Applications_tmp into [$(vQVDFullPath)ai_monitoring_Extract_Applications.qvd](qvd);
+drop table Applications_tmp;
+
+
+
+
+
+/*
+	3. Space QVD
+*/
+Set vParams = 'limit=100';
+
+Spaces:
+load * inline [
+__PH_space
+];
+
+
+Do
+
+    RestConnectorMasterTable:
+    SQL SELECT 
+        "__KEY_root",
+        (SELECT 
+            "id",
+            "type",
+            "ownerId",
+            "tenantId",
+            "name",
+            "description",
+            "createdAt",
+            "createdBy",
+            "updatedAt",
+            "__KEY_data",
+            "__FK_data"
+        FROM "data" PK "__KEY_data" FK "__FK_data"),
+        (SELECT 
+            "__KEY_links_u0",
+            "__FK_links_u0",
+            (SELECT 
+                "href" AS "href_u1",
+                "__FK_self_u0"
+            FROM "self" FK "__FK_self_u0"),
+            (SELECT 
+                "href" AS "href_u2",
+                "__FK_next"
+            FROM "next" FK "__FK_next")
+        FROM "links" PK "__KEY_links_u0" FK "__FK_links_u0")
+    FROM JSON (wrap on) "root" PK "__KEY_root"
+    WITH CONNECTION (
+        URL "https://$(vTenantName)/api/v1/spaces?$(vParams)"
+    );
+
+
+    concatenate (Spaces)
+    LOAD
+    	'$(vTenantName)'		as [Tenant Name],
+		'$(vTenantId)'			as [Tenant ID],
+        '$(vTenantId)|'&[id]	as __KEY_space,
+        [id]					as [Space Id],
+        [type]					as [Space Type],
+        '$(vTenantId)|'&[ownerId]
+        						as [Space Owner Id],
+        [name]					as [Space Name],
+        [description]			as [Space Description],
+        [createdAt]				as [Space Created Date]
+    RESIDENT RestConnectorMasterTable
+    WHERE NOT IsNull([__FK_data]);
+
+    NextURL:
+    LOAD	
+    	[href_u2] as NextURL
+    RESIDENT RestConnectorMasterTable
+    //WHERE NOT IsNull([__FK_next])
+    where len([href_u2])>0
+    ;
+    
+	let vParams = SubField(Peek('NextURL',0,'NextURL'),'?',-1);
+    Let vNextURLRows = NoOfRows('NextURL');
+
+    
+    Drop Table NextURL;
+    DROP TABLE RestConnectorMasterTable;
+    
+Loop While $(vNextURLRows)>0;
+
+	concatenate (Spaces)
+    load
+    '$(vTenantName)'			as [Tenant Name],
+	'$(vTenantId)'				as [Tenant ID],
+    '$(vTenantId)|'&'personalSpaceNoId'			
+    							as __KEY_space
+    ,'personalSpaceNoId'		as [Space Id]
+    ,'Personal Space'			as [Space Type]
+    ,''							as [Space Owner Id]
+    ,'Personal Space'			as [Space Name]
+    ,''							as [Space Description]
+    ,''							as [Space Created Date]
+    autogenerate(1)
+    ;
+    
+	concatenate (Spaces)
+    load
+    '$(vTenantName)'			as [Tenant Name],
+	'$(vTenantId)'				as [Tenant ID],
+    '$(vTenantId)|'&'noAppOrAssistantCatch'			
+    							as __KEY_space
+    ,'noAppOrAssistantCatch'	as [Space Id]
+    ,'No Space'					as [Space Type]
+    ,''							as [Space Owner Id]
+    ,'No Space Info Found'		as [Space Name]
+    ,''							as [Space Description]
+    ,''							as [Space Created Date]
+    autogenerate(1)
+    ;    
+    
+	concatenate (Spaces)
+    load
+    '$(vTenantName)'			as [Tenant Name],
+	'$(vTenantId)'				as [Tenant ID],
+    '$(vTenantId)|'&'mcpSpaceNoId'				
+    							as __KEY_space
+    ,'mcpSpaceNoId'				as [Space Id]
+    ,'MCP, No Space Data'		as [Space Type]
+    ,''							as [Space Owner Id]
+    ,'MCP, No Space Data'		as [Space Name]
+    ,''							as [Space Description]
+    ,''							as [Space Created Date]
+    autogenerate(1)
+    ;    
+
+	concatenate (Spaces)
+    load
+    '$(vTenantName)'			as [Tenant Name],
+	'$(vTenantId)'				as [Tenant ID],
+    '$(vTenantId)|'&'auditAnswersSpaceNoId'		
+    							as __KEY_space
+    ,'auditAnswersSpaceNoId'	as [Space Id]
+    ,'No Space Data Available'	as [Space Type]
+    ,''							as [Space Owner Id]
+    ,'No Space Data Available'	as [Space Name]
+    ,''							as [Space Description]
+    ,''							as [Space Created Date]
+    autogenerate(1)
+    ;
+
+let vTableRowCount = 0;
+let vTableRowCount = alt(NoOfRows('Spaces'),0);
+
+drop field __PH_space;
+
+trace === Extract step 3/14, Spaces table - $(vTableRowCount) rows. ===;
+
+store Spaces into [$(vQVDFullPath)ai_monitoring_Extract_Spaces.qvd](qvd);
+drop table Spaces;
+
+
+
+
+
+/*
+	4. Apps enabled for Qlik Answers
+*/
+    RestConnectorMasterTable:
+    SQL SELECT 
+        "id"
+    FROM JSON (wrap off) "apps"
+        WITH CONNECTION (
+            URL "https://$(vTenantName)/api/v1/nlsearch/apps/semantic?limit=100"
+    );
+
+    [AppsThatHaveQlikAnswersEnabled_tmp]:
+    LOAD
+    	'$(vTenantName)'		as [Tenant Name],
+		'$(vTenantId)'			as [Tenant ID],
+        '$(vTenantId)|'&[id]	as id
+        ,'nlsearch' 			as source
+    RESIDENT RestConnectorMasterTable;
+        DROP TABLE RestConnectorMasterTable;
+
+
+let vTableRowCount = 0;
+let vTableRowCount = alt(NoOfRows('AppsThatHaveQlikAnswersEnabled_tmp'),0);
+
+trace === Extract step 4/14, Apps with Qlik Answers Enabled table - $(vTableRowCount) rows. ===;
+
+store AppsThatHaveQlikAnswersEnabled_tmp into [$(vQVDFullPath)ai_monitoring_Extract_ApplicationsWithQAEnabled_byId.qvd](qvd);
+drop table AppsThatHaveQlikAnswersEnabled_tmp; 
+
+
+
+
+
+/*
+	5. Assistant QVD
+*/
+
+
+
+    assistant_tmp2:
+    load * inline [
+    __KEY_assistant, __KEY_space, __PH_assistant
+    ];
+    
+    assistant_kb_link_tmp:
+    load * inline [
+    __KEY_assistant, __KEY_knowledgebase, __PH_assistant_kb_link
+    ];
+
+    Set vParams = 'limit=100';
+
+    Do
+
+        RestConnectorMasterTable:
+        SQL SELECT 
+            "__KEY_root",
+            (SELECT 
+                "id",
+                "name",
+                "title",
+                "description",
+                "ownerId",
+                "createdBy",
+                "createdAt",
+                "updatedBy",
+                "updatedAt",
+                "tenantId",
+                "spaceId",
+                "welcomeMessage",
+                "customProperties",
+                "legacy",
+                "__KEY_data",
+                "__FK_data",
+                (SELECT 
+                    "@Value" AS "@Value_u0",
+                    "__FK_knowledgeBases"
+                FROM "knowledgeBases" FK "__FK_knowledgeBases" ArrayValueAlias "@Value_u0")
+            FROM "data" PK "__KEY_data" FK "__FK_data"),
+            (SELECT 
+                "__KEY_links",
+                "__FK_links",
+                (SELECT 
+                    "href",
+                    "__FK_self"
+                FROM "self" FK "__FK_self"),
+                (SELECT 
+                    "href" AS "href_u0",
+                    "__FK_next"
+                FROM "next" FK "__FK_next")
+            FROM "links" PK "__KEY_links" FK "__FK_links")
+        FROM JSON (wrap on) "root" PK "__KEY_root"
+            WITH CONNECTION (
+                URL "https://$(vTenantName)/api/v1/assistants?$(vParams)"
+        );
+
+
+        assistant_tmp:
+        LOAD
+        	'$(vTenantName)'		as [Tenant Name],
+			'$(vTenantId)'			as [Tenant ID],
+            '$(vTenantId)|'&[id]
+            						as __KEY_assistant,
+            if(len([spaceId])>0
+                ,'$(vTenantId)|'&[spaceId]
+                ,'$(vTenantId)|'&'personalSpaceNoId'	)
+                                    as __KEY_space,     
+            '$(vTenantId)|'&[id]					
+            						as [Assistant Id],
+            [name]					as [Assistant Name],
+            [description]			as [Assistant Description],
+            '$(vTenantId)|'&[ownerId]				
+            						as [Assistant Owner Id],
+            [createdAt]				as [Assistant Created DateTime],
+            [updatedAt]				as [Assistant Updated DateTime],
+            [legacy]				as [Assistant Legacy Flag],
+            [__KEY_data],
+            [__FK_data] 			AS [__KEY_root]
+        RESIDENT RestConnectorMasterTable
+        WHERE NOT IsNull([__FK_data]);
+        
+        kb_link_tmp:
+        LOAD	
+            '$(vTenantId)|'&[@Value_u0] 			
+            						AS [Knowledgebase Id],
+            [__FK_knowledgeBases] 	AS [__KEY_data]
+        RESIDENT RestConnectorMasterTable
+        where len([__FK_knowledgeBases])>0 and len([@Value_u0])>0
+        ;
+        
+        left join (kb_link_tmp)
+        load
+        	__KEY_data
+            ,[Assistant Id]
+        resident assistant_tmp;
+        
+        concatenate (assistant_tmp2)
+        load * resident assistant_tmp;
+        	drop table assistant_tmp;
+            
+        Concatenate (assistant_kb_link_tmp)
+        load * resident kb_link_tmp;
+        	drop table kb_link_tmp;
+        
+        NextURL:
+        LOAD	
+            [href_u0] as NextURL
+        RESIDENT RestConnectorMasterTable
+        where len([href_u0])>0
+        ;        
+        
+        let vParams = SubField(Peek('NextURL',0,'NextURL'),'?',-1);
+        Let vNextURLRows = NoOfRows('NextURL');
+
+        Drop Table NextURL;
+        DROP TABLE RestConnectorMasterTable;
+
+    Loop While $(vNextURLRows)>0;
+    
+    drop field __KEY_data from assistant_kb_link_tmp;
+    drop fields [__KEY_root], [__KEY_data] from assistant_tmp2;
+    
+	Count_Of_All_Assistants:
+    load
+        count(distinct [Assistant Id]) as assistant_count
+    resident assistant_tmp2;
+    let assistant_count = alt(peek('assistant_count',0,'Count_Of_All_Assistants'),0)-1;
+        drop table Count_Of_All_Assistants;
+
+    trace assistant_count =  $(assistant_count);
+
+    if $(assistant_count) >= 0 then 
+
+        assistant_with_app_id:
+        load * inline [
+        Assistant Id, __KEY_root, Application Id, ph_assistant_with_app_id
+        ];
+
+        for i = 0 to $(assistant_count)
+          let vAssistantId = subfield(peek('Assistant Id',$(i),'assistant_tmp2'),'|',2);
+
+                RestConnectorMasterTable:
+                SQL SELECT 
+                    "id",
+                    "__KEY_root",
+                    (SELECT 
+                        "@Value" AS "@Value_u0",
+                        "__FK_appIds"
+                    FROM "appIds" FK "__FK_appIds" ArrayValueAlias "@Value_u0")
+                FROM JSON (wrap on) "root" PK "__KEY_root"
+                WITH CONNECTION (
+                    URL "https://$(vTenantName)/api/v1/assistants/$(vAssistantId)"
+                );
+
+                tmp:
+                LOAD	
+                    '$(vTenantId)|'&[id]			as [Assistant Id],
+                    [__KEY_root]
+                RESIDENT RestConnectorMasterTable
+                WHERE NOT IsNull([__KEY_root]);
+
+                left join (tmp)
+                LOAD	
+                    '$(vTenantId)|'&[@Value_u0]	AS [Application Id],
+                    [__FK_appIds] 				AS [__KEY_root]
+                RESIDENT RestConnectorMasterTable
+                WHERE NOT IsNull([__FK_appIds]);
+
+                DROP TABLE RestConnectorMasterTable;
+
+                Concatenate (assistant_with_app_id)
+                load * resident tmp;
+                drop table tmp;
+
+        next i;
+
+    left join (assistant_tmp2)
+    load 
+        [Assistant Id]
+        ,[Application Id] as [Assistant Application Id]
+    resident assistant_with_app_id;
+        drop table assistant_with_app_id;
+
+    end if    
+
+let vTableRowCount = 0;
+let vTableRowCount = alt(NoOfRows('assistant_tmp2'),0);
+
+trace === Extract step 5/14, Assistants table - $(vTableRowCount) rows. ===;
+
+
+store assistant_tmp2 into [$(vQVDFullPath)ai_monitoring_Extract_Assistants.qvd](qvd);
+drop table assistant_tmp2;    
+
+let vTableRowCount = 0;
+let vTableRowCount = alt(NoOfRows('assistant_kb_link_tmp'),0);
+
+trace === Extract step 5/14, Assistants Knowledgebase Link table - $(vTableRowCount) rows. ===;
+
+
+store assistant_kb_link_tmp into [$(vQVDFullPath)ai_monitoring_Extract_AssistantKnowledgebase_Link.qvd](qvd);
+drop table assistant_kb_link_tmp; 
+
+
+
+/*
+	6. Knowledgebase QVD
+*/
+    kb_tmp:
+    load * inline [
+    __KEY_knowledgebase, __PH_knowledgebase
+    ];
+
+    Set vParams = 'limit=100';
+
+    Do
+      RestConnectorMasterTable:
+      SQL SELECT 
+          "__KEY_root",
+          (SELECT 
+              "id",
+              "tenantId",
+              "spaceId",
+              "ownerId",
+              "name",
+              "description",
+              "createdBy",
+              "createdAt",
+              "updatedBy",
+              "updatedAt",
+              "lastIndexedAt",
+              "advancedIndexing",
+              "__KEY_data",
+              "__FK_data",
+              (SELECT 
+                  "@Value",
+                  "__FK_tags"
+              FROM "tags" FK "__FK_tags" ArrayValueAlias "@Value"),
+              (SELECT 
+                  "fileCount",
+                  "effectivePages",
+                  "textSize",
+                  "fileSize",
+                  "__FK_contentSummary"
+              FROM "contentSummary" FK "__FK_contentSummary")
+          FROM "data" PK "__KEY_data" FK "__FK_data"),
+          (SELECT 
+              "__KEY_links",
+              "__FK_links",
+              (SELECT 
+                  "href",
+                  "__FK_self"
+              FROM "self" FK "__FK_self"),
+              (SELECT 
+                  "href" AS "href_u0",
+                  "__FK_next"
+              FROM "next" FK "__FK_next")
+          FROM "links" PK "__KEY_links" FK "__FK_links")
+      FROM JSON (wrap on) "root" PK "__KEY_root"
+          WITH CONNECTION (
+                URL "https://$(vTenantName)/api/v1/knowledgebases?$(vParams)"
+        );
+
+
+      [knowledgebases]:
+      LOAD	
+      	  '$(vTenantName)'						as [Tenant Name],
+		  '$(vTenantId)'						as [Tenant ID],
+          '$(vTenantId)|'&[id] 					as id,
+          [tenantId],
+          if(len(spaceId)>0
+          	,'$(vTenantId)|'&[spaceId]
+            ,'$(vTenantId)|personalSpaceNoId')
+            
+            									as spaceId,	
+          '$(vTenantId)|'&[ownerId] 			as [ownerId],
+          [name],
+          [description],
+          '$(vTenantId)|'&[createdBy] 			as [createdBy],
+          [createdAt],
+          '$(vTenantId)|'&[updatedBy] 			as [updatedBy],
+          [updatedAt],
+          [lastIndexedAt],
+          [advancedIndexing],
+          [__KEY_data],
+          [__FK_data] AS [__KEY_root]
+      RESIDENT RestConnectorMasterTable
+      WHERE NOT IsNull([__FK_data]);
+
+      left join (knowledgebases)
+      LOAD	
+          [fileCount],
+          [effectivePages],
+          [textSize],
+          [fileSize],
+          [__FK_contentSummary] AS [__KEY_data]
+      RESIDENT RestConnectorMasterTable
+      WHERE NOT IsNull([__FK_contentSummary]);
+
+      NextURL:
+      LOAD	
+          [href_u0] as NextURL
+      RESIDENT RestConnectorMasterTable
+      where len([href_u0])>0
+      ;        
+
+      let vParams = SubField(Peek('NextURL',0,'NextURL'),'?',-1);
+      Let vNextURLRows = NoOfRows('NextURL');
+
+      Drop Table NextURL;
+      DROP TABLE RestConnectorMasterTable;
+      
+      Concatenate (kb_tmp)
+      load * resident knowledgebases;
+      	drop table knowledgebases;
+
+    Loop While $(vNextURLRows)>0;
+
+  drop Fields
+      __KEY_data
+      ,__KEY_root
+      ,__PH_knowledgebase
+  from kb_tmp;
+
+
+let vTableRowCount = 0;
+let vTableRowCount = alt(NoOfRows('kb_tmp'),0);
+
+trace === Extract step 6/14, Knowledgebase table - $(vTableRowCount) rows. ===;
+
+store kb_tmp into [$(vQVDFullPath)ai_monitoring_Extract_Knowledgebases.qvd](qvd);
+drop table kb_tmp;  
+
+
+/*
+	7. Agentic messages QVD
+*/
+
+
+let vAnswersQuestionsQVD_DateFilter = '&filter=createdAt%20ge%20%22'&replace(vAnswersQuestionsQVD_MaxTimestamp,':','%3A')&'%22';
+trace vAnswersQuestionsQVD_DateFilter = $(vAnswersQuestionsQVD_DateFilter);
+
+    Messages_tmp1:
+    load * inline [__PH_agentic_messages];    
+
+    Set vParams = 'limit=100';
+
+    Do
+
+        RestConnectorMasterTable:
+        SQL SELECT 
+            "__KEY_root",
+            (SELECT 
+                "id" AS "id_u3",
+                "type" AS "type_u26",
+                "threadId",
+                "ownerId",
+                "createdAt",
+                "modal",
+                "feedback",
+                "humanMessageId",
+                "__KEY_data",
+                "__FK_data",
+                (SELECT 
+                    "text" AS "text_u7",
+                    "contentId",
+                    "__KEY_content",
+                    "__FK_content"
+                FROM "content" PK "__KEY_content" FK "__FK_content"),
+                (SELECT 
+                    "type" AS "type_u25",
+                    "id" AS "id_u2",
+                    "__KEY_context",
+                    "__FK_context"
+                FROM "context" PK "__KEY_context" FK "__FK_context")
+            FROM "data" PK "__KEY_data" FK "__FK_data"),
+            (SELECT 
+                "__KEY_links",
+                "__FK_links",
+                (SELECT 
+                    "href",
+                    "__FK_self"
+                FROM "self" FK "__FK_self"),
+                (SELECT 
+                    "href" AS "href_u0",
+                    "__FK_next"
+                FROM "next" FK "__FK_next")
+            FROM "links" PK "__KEY_links" FK "__FK_links")    
+        FROM JSON (wrap on) "root" PK "__KEY_root"
+            WITH CONNECTION (
+                URL "https://$(vTenantName)/api/v1/cloud-assistants/threads/messages?$(vParams)$(vAnswersQuestionsQVD_DateFilter)"
+        );
+        
+        trace STEP 7, pulling:;
+        trace https://$(vTenantName)/api/v1/cloud-assistants/threads/messages?$(vParams)$(vAnswersQuestionsQVD_DateFilter);
+        
+
+        [Messages_tmp]:
+        LOAD	
+        	'$(vTenantName)'		as [Tenant Name],
+			'$(vTenantId)'			as [Tenant ID],
+            [id_u3] 				AS [Message Id],
+            [type_u26] 				AS [Message Human or AI],
+            '$(vTenantId)|'&ownerId					
+            						as [Question Asked By Id],
+            [threadId]				as [Thread Id],
+            date(floor([createdAt]),'$(DateFormat)')
+                                	as [Date],
+            time([createdAt])		as [Time],  
+            createdAt				as %DateTime,
+            [feedback]				as [Message Feedback],
+            [humanMessageId]		as [Matching Human Message Id],
+            [__KEY_data]			as [__KEY_data_Message]
+        // 	[modal],    
+        // 	[__FK_data] AS [__KEY_root]
+        RESIDENT RestConnectorMasterTable
+        WHERE NOT IsNull([__FK_data])
+        ;
+
+        left join ([Messages_tmp])
+        LOAD	
+            [type_u25] 				AS [Question Source_tmp],
+            [id_u2] 				AS [Message Source Id],
+            [__FK_context] 			AS [__KEY_data_Message]
+        // 	[__KEY_context],    
+        RESIDENT RestConnectorMasterTable
+        WHERE NOT IsNull([__FK_context]);
+
+        left join ([Messages_tmp])
+        LOAD	
+            [text_u7] 				AS [Message Question],
+            [contentId]				as [Content Id],
+        // 	[__KEY_content],
+            [__FK_content] 			AS [__KEY_data_Message]
+        RESIDENT RestConnectorMasterTable
+        WHERE NOT IsNull([__FK_content]);
+
+		drop field __KEY_data_Message from Messages_tmp;
+
+        concatenate (Messages_tmp1)
+        load 
+            *
+        resident Messages_tmp;
+            drop table Messages_tmp;
+
+
+        NextURL:
+        LOAD	
+            [href_u0] as NextURL
+        RESIDENT RestConnectorMasterTable
+        //WHERE NOT IsNull([__FK_next])
+        where len([href_u0])>0
+        ;
+
+        let vParams = SubField(Peek('NextURL',0,'NextURL'),'&',-2) & '&' & SubField(Peek('NextURL',0,'NextURL'),'&',-1);;
+        Let vNextURLRows = NoOfRows('NextURL');
+
+        Drop Table NextURL;
+        DROP TABLE RestConnectorMasterTable;
+
+    Loop While $(vNextURLRows)>0;
+	/*
+        use threads endpoint to search for origin of orphan messages
+    */
+    orphan_threadIds:
+    load distinct 
+        [Thread Id] as thread_id
+    resident Messages_tmp1
+        where len([Question Source_tmp])=0 and len([Thread Id])>0
+    ;    
+
+    count_of_threads:
+    load
+        count(distinct thread_id) as count_of_threads
+    resident orphan_threadIds;
+
+    let vCountOfThreads = alt(peek('count_of_threads',0,'count_of_threads'),0)-1;
+        drop table count_of_threads;
+
+	
+    assistant_id_to_application_id_map:
+    load * inline [
+    Assistant Id, Assistant Application Id
+    ];
+	
+    /*
+    	Turn off errors in case the qvd has no rows or does not have both fields.
+    */
+//     set ErrorMode = 0;
+    
+//     Concatenate (assistant_id_to_application_id_map)	
+//     LOAD
+//         "Assistant Id",
+//         [Assistant Application Id]
+//     FROM [$(vQVDFullPath)ai_monitoring_Extract_Assistants.qvd]
+//     (qvd);
+	
+//     set ErrorMode = 1;
+    
+    if alt(QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_Assistants.qvd'),0) > 0 then
+    
+        Concatenate (assistant_id_to_application_id_map)	
+        LOAD
+            "Assistant Id",
+            [Assistant Application Id]
+        FROM [$(vQVDFullPath)ai_monitoring_Extract_Assistants.qvd]
+        (qvd);    
+    
+    end if
+
+
+    if $(vCountOfThreads) >= 0 then
+
+        orphaned_threads_with_source:
+        load * inline [placeholder];
+
+        for i = 0 to $(vCountOfThreads)
+
+            let vThreadId = peek('thread_id',$(i),'orphan_threadIds');
+
+            RestConnectorMasterTable:
+            SQL SELECT 
+                "id" AS "id_u0",
+                "__KEY_root",
+                (SELECT 
+                    "type",
+                    "id",
+                    "__FK_context",
+                    "__KEY_context"
+                FROM "context" PK "__KEY_context" FK "__FK_context")
+            FROM JSON (wrap on) "root" PK "__KEY_root"
+            WITH CONNECTION (
+                          URL "https://$(vTenantName)/api/v1/cloud-assistants/threads/$(vThreadId)"
+                      );
+
+            [root]:
+            LOAD	
+                [id_u0] 		AS [Thread Id],
+                [__KEY_root]
+            RESIDENT RestConnectorMasterTable
+            WHERE NOT IsNull([__KEY_root]);
+
+            left join (root)
+            LOAD	
+                [type]			as [question_type],
+                [id]			as [question_asset],
+                [__FK_context] 	AS [__KEY_root]
+            RESIDENT RestConnectorMasterTable
+            WHERE NOT IsNull([__FK_context]);
+
+            DROP TABLE RestConnectorMasterTable;
+
+            concatenate (orphaned_threads_with_source)
+            load * resident root;
+                drop table root;
+
+        next i;
+
+        drop table orphan_threadIds;
+
+        orphaned_threads_source_map:
+        mapping load
+            [Thread Id]
+            ,if(upper([question_type])='APP','Application'
+            	,if(upper([question_type])='DATA-QUALITY','Qlik Answers'
+                ,if(upper([question_type])='ASSISTANT','Qlik Answers'
+                ,if(upper([question_type])='HELP','Help Agent'
+                ,if(upper([question_type])='PREDICT','Qlik Answers'
+                ,if(upper([question_type])='BUSINESS-GLOSSARY','Qlik Answers'
+                ,if(upper([question_type])='DATA-PRODUCT','Qlik Answers'
+                ,'Qlik Answers'
+                ))))))) 					as question_type      
+        resident orphaned_threads_with_source;
+
+        orphaned_threads_asset_id_map:
+        mapping load
+            [Thread Id]
+            ,[question_asset]
+        resident orphaned_threads_with_source;
+
+        drop table orphaned_threads_with_source;    
+
+        Messages_tmp2:        
+        NoConcatenate load
+            *
+            ,1																as [Question Count]
+            ,'$(vTenantId)|'&[Thread Id]&'|'&[Message Id] 					as __KEY_thread_message_concat
+            ,if(len([Question Source_tmp])=0 
+              ,applymap('orphaned_threads_source_map',[Thread Id],'No source found')
+              ,if( upper([Question Source_tmp]) = 'APP'
+                    ,'Qlik Answers - Application'
+                    ,if( upper([Question Source_tmp]) = 'ASSISTANT'
+                        ,'Qlik Answers - Assistant'
+                        ,if ( upper([Question Source_tmp]) = 'HELP'
+                            ,'Help Agent'
+                            ,if( upper([Question Source_tmp]) = 'PREDICT'
+                            	,'Qlik Answers - Predict'
+                                ,if( upper([Question Source_tmp]) = 'DATA-QUALITY'
+                                	,'Qlik Answers - Data Quality'
+                                    	,if( upper([Question Source_tmp]) = 'BUSINESS-GLOSSARY'
+                                        	,'Qlik Answers - Business Glossary'
+                                            	,if( upper([Question Source_tmp]) = 'DATA-PRODUCT'
+                                                	,'Qlik Answers - Data Product'
+                                                    	,if( upper([Question Source_tmp]) = 'AUTOMATION'
+                                                        	,'Qlik Answers - Automation'
+                                                    		,'Qlik Answers'
+                            )))))))))											as [Question Source]
+			,if(len([Question Source_tmp])=0 
+              ,applymap('orphaned_threads_source_map',[Thread Id],'No source found')
+              ,if( upper([Question Source_tmp]) = 'APP'
+                    ,'Application'
+                    ,if( upper([Question Source_tmp]) = 'ASSISTANT'
+                        ,'Assistant'
+                        ,if ( upper([Question Source_tmp]) = 'HELP'
+                            ,'Help Agent'
+                            ,if( upper([Question Source_tmp]) = 'PREDICT'
+                            	,'Predict'
+                                ,if( upper([Question Source_tmp]) = 'DATA-QUALITY'
+                                	,'Data-Quality'
+                                    	,if( upper([Question Source_tmp]) = 'BUSINESS-GLOSSARY'
+                                        	,'Business-Glossary'
+                                            	,if( upper([Question Source_tmp]) = 'DATA-PRODUCT'
+                                                	,'Data Product'
+                                                    	,if( upper([Question Source_tmp]) = 'AUTOMATION'
+                                                        ,'Automation'
+                                                    	,'Other'
+                            )))))))))											as [Question Origin]                            
+            ,'$(vTenantId)|'&if(len([Question Source_tmp])=0 and applymap('orphaned_threads_source_map',[Thread Id],'No source found')='Application' 
+               ,applymap('orphaned_threads_asset_id_map',[Thread Id],'')
+               ,if([Question Source_tmp]='app'
+                    ,[Message Source Id]
+                    ,if( [Question Source_tmp]='assistant'
+                        ,applymap('assistant_id_to_application_id_map',[Message Source Id],'')
+                        ,''))) 												as __KEY_app
+            ,'$(vTenantId)|'&if(len([Question Source_tmp])=0 and applymap('orphaned_threads_source_map',[Thread Id],'No source found')='Qlik Answers'
+                ,applymap('orphaned_threads_asset_id_map',[Thread Id],'')
+                ,if( [Question Source_tmp]='assistant', [Message Source Id], '')
+                ) 		
+                                                                            as __KEY_assistant
+        resident Messages_tmp1
+            where [Message Human or AI] = 'human';
+
+        drop table Messages_tmp1;    
+
+
+    elseif $(vCountOfThreads) = -1 then
+
+        drop table orphan_threadIds;
+
+        Messages_tmp2:
+        NoConcatenate load
+            *
+            ,1																as [Question Count]
+            ,'$(vTenantId)|'&[Thread Id]&'|'&[Message Id] 					as __KEY_thread_message_concat                        
+            ,if( upper([Question Source_tmp]) = 'APP'
+              ,'Qlik Answers - Application'
+              ,if( upper([Question Source_tmp]) = 'ASSISTANT'
+                  ,'Qlik Answers - Assistant'
+                  ,if ( upper([Question Source_tmp]) = 'HELP'
+                      ,'Help Agent'
+                      ,if( upper([Question Source_tmp]) = 'PREDICT'
+                          ,'Qlik Answers - Predict'
+                          ,if( upper([Question Source_tmp]) = 'DATA-QUALITY'
+                              ,'Qlik Answers - Data Quality'
+                                  ,if( upper([Question Source_tmp]) = 'BUSINESS-GLOSSARY'
+                                      ,'Qlik Answers - Business Glossary'
+                                      	,if( upper([Question Source_tmp]) = 'DATA-PRODUCT'
+                                                	,'Qlik Answers - Data Product'
+                                                    	,if( upper([Question Source_tmp]) = 'AUTOMATION'
+                                                        ,'Qlik Answers - Automation'
+                                                    	,'Qlik Answers'
+                                        ))))))))								as [Question Source]
+                                        
+			,if( upper([Question Source_tmp]) = 'APP'
+                    ,'Application'
+                    ,if( upper([Question Source_tmp]) = 'ASSISTANT'
+                        ,'Assistant'
+                        ,if ( upper([Question Source_tmp]) = 'HELP'
+                            ,'Help Agent'
+                            ,if( upper([Question Source_tmp]) = 'PREDICT'
+                            	,'Predict'
+                                ,if( upper([Question Source_tmp]) = 'DATA-QUALITY'
+                                	,'Data-Quality'
+                                    	,if( upper([Question Source_tmp]) = 'BUSINESS-GLOSSARY'
+                                        	,'Business-Glossary'
+                                            	,if( upper([Question Source_tmp]) = 'DATA-PRODUCT'
+                                                	,'Data Product'
+                                                    	,if( upper([Question Source_tmp]) = 'AUTOMATION'
+                                                        ,'Automation'
+                                                    	,'Other'
+                            ))))))))											as [Question Origin]                                        
+                            
+            ,'$(vTenantId)|'&if([Question Source_tmp]='app'
+                ,[Message Source Id]
+                ,if( [Question Source_tmp]='assistant'
+                    ,applymap('assistant_id_to_application_id_map',[Message Source Id],'')
+                    ,''))	 												as __KEY_app
+            ,'$(vTenantId)|'&if([Question Source_tmp]='assistant', [Message Source Id], '') 		
+                                                                            as __KEY_assistant
+        resident Messages_tmp1
+            where [Message Human or AI] = 'human';
+
+        drop table Messages_tmp1;    
+		
+    end if
+
+    drop fields 
+    	[Message Human or AI]
+    	,[Question Source_tmp]
+    from Messages_tmp2
+    ;    
+
+
+    if $(vAnswersQuestionsQVD_Exists) = 1 then
+        concatenate (Messages_tmp2)
+        load *
+        FROM [$(vQVDFullPath)ai_monitoring_Extract_AgenticAnswersMessages.qvd](qvd);
+    end if
+    
+    Messages_tmp3:
+    NoConcatenate load distinct 
+    *
+    resident Messages_tmp2;
+    	drop table Messages_tmp2;
+    
+let vTableRowCount = 0;
+let vTableRowCount = alt(NoOfRows('Messages_tmp3'),0);
+
+trace === Extract step 7/14, Agentic Messages table - $(vTableRowCount) rows. ===;    
+
+store Messages_tmp3 into [$(vQVDFullPath)ai_monitoring_Extract_AgenticAnswersMessages.qvd](qvd);
+drop table Messages_tmp3;
+drop table assistant_id_to_application_id_map;
+
+
+
+
+
+/*
+	8. Legacy Answers messages and answers QVD
+*/   
+let vAnswersLegacyAnswersQuestionsQVD_DateFilter = '?filter=createdAt%20ge%20%22'&replace(vAnswersLegacyAnswersQuestionsQVD_MaxTimestamp,':','%3A')&'%22';
+trace vAnswersLegacyAnswersQuestionsQVD_DateFilter = $(vAnswersLegacyAnswersQuestionsQVD_DateFilter);
+
+Set vParams = 'limit=100';
+
+legacy_assistants_tmp:
+load * inline [
+Assistant Id, __KEY_space, Assistant Legacy Flag, __PH_legacy_assistants
+];
+
+
+if alt(QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_Assistants.qvd'),0) > 0	and alt(QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_AssistantKnowledgebase_Link.qvd'),0) > 0 then
+
+    assistant_check_tmp1:
+    LOAD
+        __KEY_space,
+        "Assistant Id",
+        "Assistant Legacy Flag"
+    FROM [$(vQVDFullPath)ai_monitoring_Extract_Assistants.qvd]
+    (qvd)
+        where "Assistant Legacy Flag" = 'True' and len(__KEY_space)>0 and __KEY_space <> '$(vTenantId)|personalSpaceNoId'
+    ;
+    
+    left join (assistant_check_tmp1)
+    LOAD
+    "Assistant Id",
+    count("Knowledgebase Id") as kb_count
+    FROM [$(vQVDFullPath)ai_monitoring_Extract_AssistantKnowledgebase_Link.qvd]
+    (qvd)
+    group by "Assistant Id"
+    ;
+
+	concatenate (legacy_assistants_tmp)
+    load * resident assistant_check_tmp1;
+    	drop table assistant_check_tmp1;
+
+
+end if
+
+
+let vDataExists_LegacyAssistant = alt(NoOfRows('legacy_assistants_tmp'),0);
+
+if $(vDataExists_LegacyAssistant) > 0 then
+
+	count_of_assistants:
+    load
+        count(distinct [Assistant Id]) as count_of_assistants
+    resident legacy_assistants_tmp;
+
+    let vCountOfAssistants = alt(peek('count_of_assistants',0,'count_of_assistants'),0)-1;
+        drop table count_of_assistants;
+
+
+	if $(vCountOfAssistants) >= 0 then
+        
+        legacy_messages_tmp:
+        load * inline [
+        __PH_legacy_messages
+        ];
+    
+        for i = 0 to $(vCountOfAssistants)
+
+          let vAssistantId = subfield(peek('Assistant Id',$(i),'legacy_assistants_tmp'),'|',2);
+
+            RestConnectorMasterTable:
+            SQL SELECT 
+                "__KEY_root",
+                (SELECT 
+                    "id",
+                    "ownerId",
+                    "createdAt",
+                    "__KEY_data",
+                    "__FK_data"
+                FROM "data" PK "__KEY_data" FK "__FK_data")
+            FROM JSON (wrap on) "root" PK "__KEY_root"
+            WITH CONNECTION (
+                    URL "https://$(vTenantName)/api/v1/assistants/$(vAssistantId)/threads$(vAnswersLegacyAnswersQuestionsQVD_DateFilter)"
+                );
+
+            [tmp]:
+            LOAD	
+            	'$(vTenantName)'		as [Tenant Name],
+				'$(vTenantId)'			as [Tenant ID],
+                [id]					as [Thread Id],
+                '$(vTenantId)|'&[ownerId]				
+                						as [Question Asked By Id],
+                [createdAt]				as [Thread Create DateTime],
+                '$(vTenantId)|'&'$(vAssistantId)'		
+                						as [Assistant Id],
+                createdAt				as %DateTime_LegacyAnswersQuestions
+            RESIDENT RestConnectorMasterTable
+            WHERE NOT IsNull([__FK_data]);
+                DROP TABLE RestConnectorMasterTable;
+
+            RestConnectorMasterTable:
+            SQL SELECT 
+                "__KEY_root",
+                (SELECT 
+                    "id",
+                    "request",
+                    "response",
+                    "createdAt",
+                    "updatedAt",
+                    "ownerId",
+                    "threadId",
+                    "__KEY_data",
+                    "__FK_data"
+                FROM "data" PK "__KEY_data" FK "__FK_data")
+            FROM JSON (wrap on) "root" PK "__KEY_root"
+            WITH CONNECTION (
+                    URL "https://$(vTenantName)/api/v1/assistants/$(vAssistantId)/interactions$(vAnswersLegacyAnswersQuestionsQVD_DateFilter)"
+                );
+
+
+            left join (tmp)
+            LOAD	
+                '$(vTenantId)|'&threadId&'|'&id 					
+                									as __KEY_thread_message_concat,
+                1									as [Question Count],
+        		'Qlik Answers (Legacy)' 			as [Question Source],
+                [id]								as [Message Id],
+                [request]							as [Message Question],
+                [response]							as [Answer_legacy],
+                date(floor([createdAt]),'$(DateFormat)')		
+                                              		as Date,
+                time([createdAt])					as Time,
+                createdAt							as %DateTime_Answer,
+                '$(vTenantId)|'&[ownerId]							
+                									as [Message Asked By Id],
+                [threadId]							as [Thread Id]
+            RESIDENT RestConnectorMasterTable
+            WHERE NOT IsNull([__FK_data]);
+                DROP TABLE RestConnectorMasterTable;   
+
+
+            concatenate (legacy_messages_tmp)
+            load 
+              *
+            resident tmp;
+              drop table tmp;
+
+        next i;
+	end if
+    drop table legacy_assistants_tmp;
+	
+    drop field __PH_legacy_messages from legacy_messages_tmp;
+
+    if $(vAnswersLegacyAnswersQuestionsQVD_Exists) = 1 then
+
+        concatenate (legacy_messages_tmp)
+        load *
+        FROM [$(vQVDFullPath)ai_monitoring_Extract_LegacyQuestionsAndAnswers.qvd](qvd);
+
+    end if
+	
+    legacy_messages_tmp2:
+	NoConcatenate load distinct *
+    resident legacy_messages_tmp;
+    	drop table legacy_messages_tmp;
+
+
+let vTableRowCount = 0;
+let vTableRowCount = alt(NoOfRows('legacy_messages_tmp2'),0);
+
+trace === Extract step 8/14, Legacy Messages and Answers table - $(vTableRowCount) rows. ===;
+
+store legacy_messages_tmp2 into [$(vQVDFullPath)ai_monitoring_Extract_LegacyQuestionsAndAnswers.qvd](qvd);
+drop table legacy_messages_tmp2;
+else
+	drop table legacy_assistants_tmp;
+end if
+
+/*
+	9. Legacy answers audit QVD
+*/
+let vAnswersLegacyAnswersAuditQVD_DateFilter = '&eventTime='&vAnswersLegacyAnswersAuditQVD_MaxTimestamp& '/9999-01-01T00:00:00Z';
+trace vAnswersLegacyAnswersAuditQVD_DateFilter = $(vAnswersLegacyAnswersAuditQVD_DateFilter);
+
+ 
+LET vNextURL = ''; 
+
+
+if $(vDataExists_LegacyAnswersAuditData) > 0 then
+
+    Audit_LegacyAnswers_tmp: 
+        LOAD * INLINE [__PH_legacy_answers_audit];
+
+    Do
+
+        RestConnectorMasterTable:
+        SQL SELECT 
+            "__KEY_root",
+            (SELECT 
+                "id",
+                "contentType",
+                "eventId",
+                "eventTime",
+                "eventType",
+                "source",
+                "tenantId",
+                "userId",
+                "sessionId",
+                "__KEY_data",
+                "__FK_data",
+                (SELECT 
+                    "assistantId",
+                    "__KEY_data_u0",
+                    "__FK_data_u0",
+                    (SELECT 
+                        "__KEY_trace",
+                        "__FK_trace",
+                        (SELECT 
+                            "cancelled",
+                            "interactionId",
+                            "outputTokens",
+                            "statusCode",
+                            "timeToFirstToken",
+                            "timeToFullResponse",
+                            "rejectionCategory",
+                            "sources",
+                            "__KEY_result",
+                            "__FK_result"
+                        FROM "result" PK "__KEY_result" FK "__FK_result")
+                    FROM "trace" PK "__KEY_trace" FK "__FK_trace")
+                FROM "data" PK "__KEY_data_u0" FK "__FK_data_u0")
+            FROM "data" PK "__KEY_data" FK "__FK_data"),
+            (SELECT 
+                "__KEY_links_u0",
+                "__FK_links_u0",
+                (SELECT 
+                    "href" AS "href_u0",
+                    "__FK_self_u0"
+                FROM "self" FK "__FK_self_u0"),
+                (SELECT 
+                    "href" AS "href_u1",
+                    "__FK_next"
+                FROM "next" FK "__FK_next")
+            FROM "links" PK "__KEY_links_u0" FK "__FK_links_u0")
+        FROM JSON (wrap on) "root" PK "__KEY_root"
+           WITH CONNECTION (
+           URL "https://$(vTenantName)/api/v1/audits?limit=100&sort=-eventTime&source=com.qlik/assistant&eventType=com.qlik.v1.assistant.queryexecuted$(vAnswersLegacyAnswersAuditQVD_DateFilter)$(vNextURL)"
+        );
+
+
+		trace STEP 9 Pulling:;
+        trace https://$(vTenantName)/api/v1/audits?limit=100&sort=-eventTime&source=com.qlik/assistant&eventType=com.qlik.v1.assistant.queryexecuted$(vAnswersLegacyAnswersAuditQVD_DateFilter)$(vNextURL);
+
+        [result]:
+        LOAD	
+        	'$(vTenantName)'								as [Tenant Name],
+			'$(vTenantId)'									as [Tenant ID],
+            [interactionId]									as [Message Id],
+            '$(vTenantId)|'&'auditAnswersSpaceNoId'							
+            												as __KEY_space,
+            [rejectionCategory]								as [Rejection Reason],
+            1 												as [Question Count],
+            'Qlik Answers (Legacy)'							as [Question Source],
+            'From audit data.  Question not retained.' 		as [Message Question],
+            [__KEY_result],
+            [__FK_result] AS [__KEY_trace]
+        RESIDENT RestConnectorMasterTable
+        WHERE NOT IsNull([__FK_result]);
+
+        left join (result)
+        LOAD	
+            [__KEY_trace],
+            [__FK_trace] AS [__KEY_data_u0]
+        RESIDENT RestConnectorMasterTable
+        WHERE NOT IsNull([__FK_trace]);
+
+        left join (result)
+        LOAD	
+            '$(vTenantId)|'&[assistantId]					as __KEY_assistant,
+            [__KEY_data_u0],
+            [__FK_data_u0] AS [__KEY_data]
+        RESIDENT RestConnectorMasterTable
+        WHERE NOT IsNull([__FK_data_u0]);
+
+        left join (result)
+        LOAD	
+            date(floor([eventTime]),'$(DateFormat)')		
+                                                            as Date,
+            time([eventTime])								as Time,
+            eventTime										as %DateTime_LegacyAudit,
+            '$(vTenantId)|'&[userId]						as [Question Asked By Id],
+            '$(vTenantId)|'&[userId]										
+            												as [Message Asked By Id],
+            hash128(tenantId&'|'&eventId&'|'&userId&'|'&eventTime)	as [alt_Message Id],
+            [__KEY_data],
+            [__FK_data] AS [__KEY_root]
+        RESIDENT RestConnectorMasterTable
+        WHERE NOT IsNull([__FK_data]);
+
+        concatenate (Audit_LegacyAnswers_tmp)
+        load * resident result;
+            drop table result;
+
+        NextURL:
+        LOAD	
+            [href_u1] AS NextURL
+        RESIDENT RestConnectorMasterTable
+        WHERE NOT IsNull([__FK_next]);
+
+        DROP TABLE RestConnectorMasterTable;
+
+        LET vNextURL = TextBetween(Peek('NextURL',0,'NextURL'),'&next=',Null());
+
+
+        IF SubStringCount('$(vNextURL)','&') >= 1 THEN
+            LET vNextURL = TextBetween('$(vNextURL)',Null(),'&');
+        END IF
+
+        LET vNextURL = '&next=' & '$(vNextURL)';
+
+        LET vNextURLRows = NoOfRows('NextURL');
+
+        DROP TABLE NextURL;
+
+
+    Loop While $(vNextURLRows)>0;
+
+    drop fields __PH_legacy_answers_audit
+        ,__KEY_result 
+        ,__KEY_trace
+        ,__KEY_data_u0
+        ,__KEY_data
+        ,__KEY_root
+    from Audit_LegacyAnswers_tmp;
+
+
+
+
+    if $(vAnswersLegacyAnswersAuditQVD_Exists) = 1 then
+
+        concatenate (Audit_LegacyAnswers_tmp)
+        load *
+        FROM [$(vQVDFullPath)ai_monitoring_Extract_LegacyAnswersAudit.qvd](qvd);
+
+    end if
+
+    Audit_LegacyAnswers:
+    NoConcatenate load distinct *
+    resident Audit_LegacyAnswers_tmp;
+        drop table Audit_LegacyAnswers_tmp;
+
+let vTableRowCount = 0;
+let vTableRowCount = alt(NoOfRows('Audit_LegacyAnswers'),0);
+
+trace === Extract step 9/14, Legacy Messages Audit table - $(vTableRowCount) rows. ===;
+    
+    STORE [Audit_LegacyAnswers] INTO [$(vQVDFullPath)ai_monitoring_Extract_LegacyAnswersAudit.qvd](qvd); 
+	drop table Audit_LegacyAnswers;
+    
+end if
+
+
+
+
+
+/*
+	10. Agentic answers
+*/
+let vAnswersQVD_DateFilter = '&filter=createdAt%20ge%20%22'&replace(vAnswersQVD_MaxTimestamp,':','%3A')&'%22';
+trace vAnswersQVD_DateFilter = $(vAnswersQVD_DateFilter);
+
+Set vParams = 'limit=100';
+
+if $(vDataExists_AgenticAnswersMessages) > 0 then
+
+
+    body_tmp:
+    load * inline [__PH_answer_body];
+
+    answers_spine_tmp:
+    load * inline [__PH_answer_spine];
+
+    errors_answers_tmp:
+    load * inline [__PH_answer_error];
+
+
+    Do
+
+        RestConnectorMasterTable:
+        SQL SELECT 
+            "__KEY_root",
+            (SELECT 
+                "threadId",
+                "createdAt",
+                "humanMessageId",
+                "__KEY_data",
+                "__FK_data",
+                (SELECT 
+                    "error_code",
+                    "__KEY_metadata",
+                    "__FK_metadata",
+                    (SELECT 
+                        "error_title",
+                        "error_type",
+                        "__FK_meta"
+                    FROM "meta" FK "__FK_meta")
+                FROM "metadata" PK "__KEY_metadata" FK "__FK_metadata"),
+                (SELECT 
+                    "detail",
+                    "__FK_errors"
+                FROM "errors" FK "__FK_errors"),
+                (SELECT 
+                    "text" AS "text_u3",
+                    "__KEY_content",
+                    "__FK_content",
+                    (SELECT 
+                        "__KEY_card",
+                        "__FK_card",
+                        (SELECT 
+                            "text" AS "text_u2",
+                            "__KEY_body",
+                            "__FK_body"
+                        FROM "body" PK "__KEY_body" FK "__FK_body")
+                    FROM "card" PK "__KEY_card" FK "__FK_card")
+                FROM "content" PK "__KEY_content" FK "__FK_content")
+            FROM "data" PK "__KEY_data" FK "__FK_data"),
+            (SELECT 
+                "__KEY_links",
+                "__FK_links",
+                (SELECT 
+                    "href" AS "href_self",
+                    "__FK_self"
+                FROM "self" FK "__FK_self"),
+                (SELECT 
+                    "href" AS "href_next",
+                    "__FK_next"
+                FROM "next" FK "__FK_next")
+            FROM "links" PK "__KEY_links" FK "__FK_links")
+        FROM JSON (wrap on) "root" PK "__KEY_root"
+        WITH CONNECTION (
+                URL "https://$(vTenantName)/api/v1/cloud-assistants/threads/messages?$(vParams)$(vAnswersQVD_DateFilter)"
+        );
+	
+    	trace STEP 10, pulling from:;
+		trace https://$(vTenantName)/api/v1/cloud-assistants/threads/messages?$(vParams)$(vAnswersQVD_DateFilter);
+ 
+
+        body:
+        LOAD	
+        	'$(vTenantName)'			as [Tenant Name],
+			'$(vTenantId)'				as [Tenant ID],
+            [threadId],
+            [createdAt]					as %DateTime_Answer,
+            [humanMessageId]
+            ,__KEY_data
+            ,[__FK_data] 				AS [__KEY_root]
+        RESIDENT RestConnectorMasterTable
+        WHERE NOT IsNull([__FK_data]);
+        
+        left join (body)
+// 		body:
+        LOAD	
+        	[text_u3] 					AS [text_u3]
+        	,"__FK_content" 			as __KEY_data
+            ,"__KEY_content"
+        RESIDENT RestConnectorMasterTable
+        WHERE NOT IsNull([__FK_content]);
+        
+        left join (body)
+        load
+        	"__FK_card" 				as __KEY_content
+            ,"__KEY_card"
+		resident RestConnectorMasterTable
+        WHERE NOT IsNull([__FK_card]); 
+        
+        left join (body)
+        LOAD	
+        	[text_u2] 					AS [text_u2]
+            ,__FK_body					as __KEY_card
+        RESIDENT RestConnectorMasterTable
+        WHERE NOT IsNull([__FK_body]);
+
+		concatenate (answers_spine_tmp)
+        LOAD	
+            '$(vTenantId)|'&[threadId]&'|'&[humanMessageId] AS __KEY_thread_message_concat
+        RESIDENT RestConnectorMasterTable
+        WHERE NOT IsNull([__FK_data]) and len(humanMessageId)>0;
+
+		concatenate(body_tmp)
+        load
+            *
+        resident body;
+            drop table body;
+		
+        
+        // -------------------------------------------------------------------------------------------
+        //
+        //	error codes and descriptions
+        //
+        [errors_tmp]:
+        LOAD
+            '$(vTenantId)|'&threadId&'|'&humanMessageId				as __KEY_thread_message_concat,
+            [__KEY_data],
+            [__FK_data] AS [__KEY_root]
+        RESIDENT RestConnectorMasterTable
+        WHERE NOT IsNull([__FK_data]) and len(humanMessageId)>0;
+
+        left join (errors_tmp)
+        LOAD	
+            [error_code]							as [Answers Error Code],
+            [__KEY_metadata],
+            [__FK_metadata] AS [__KEY_data]
+        RESIDENT RestConnectorMasterTable
+        WHERE NOT IsNull([__FK_metadata]);
+
+        left join (errors_tmp)
+        LOAD	
+            [detail]								as [Answers Error Detail],
+            [__FK_errors] AS [__KEY_data]
+        RESIDENT RestConnectorMasterTable
+        WHERE NOT IsNull([__FK_errors]);
+
+
+        Concatenate (errors_answers_tmp)
+        load * resident errors_tmp;
+            drop table errors_tmp;
+        //
+        // -------------------------------------------------------------------------------------------
+ 
+        NextURL:
+        LOAD	
+            [href_next] as NextURL
+        RESIDENT RestConnectorMasterTable
+        //WHERE NOT IsNull([__FK_next])
+        where len([href_next])>0
+        ;
+
+        let vParams = SubField(Peek('NextURL',0,'NextURL'),'&',-2) & '&' & SubField(Peek('NextURL',0,'NextURL'),'&',-1);
+        Let vNextURLRows = NoOfRows('NextURL');
+
+        Drop Table NextURL;
+        DROP TABLE RestConnectorMasterTable;
+
+
+    Loop While $(vNextURLRows)>0;
+
+    drop field __PH_answer_body from body_tmp;
+
+	
+
+    answers_tmp:
+    load *
+        ,if( peek('__KEY_thread_message_concat')=__KEY_thread_message_concat,peek('recordCount')+1,1) as recordCount
+    ;
+    load
+        '$(vTenantId)|'&[threadId]&'|'&[humanMessageId] 		as __KEY_thread_message_concat
+    //     ,[text_u2] 								as Answer
+        ,if( len([text_u2])>0
+        	,replace(replace( replace( [text_u2], textbetween( [text_u2] , '<citation', '</citation>' ), '' ), '<citation', '' ), '</citation>', '')
+            	,if(len([text_u3])>0
+            		,replace(replace( replace( [text_u3], textbetween( [text_u3] , '<citation', '</citation>' ), '' ), '<citation', '' ), '</citation>', '')
+            ))                                    
+                                                as Answer
+        ,%DateTime_Answer
+        ,'Normal' 								as [%SourceType]
+    Resident body_tmp
+        where ( len([text_u2])>0 and [text_u2] <> 'Conclusion' ) 
+        	or ( len(text_u3)>0 )
+		order by threadId asc, humanMessageId asc          
+    ;
+        drop table body_tmp;
+        
+        
+        
+    maxRecordCount:
+    load
+        max(recordCount) as maxRecordCount
+    resident answers_tmp;
+
+    let vMaxRecordCount = alt(Peek('maxRecordCount', 0, 'maxRecordCount'),0);
+        drop table maxRecordCount;
+
+    if $(vMaxRecordCount) > 0 then
+
+        keyOnlyTable:
+        load Distinct
+            __KEY_thread_message_concat
+        resident answers_tmp;
+
+        for i = 1 to $(vMaxRecordCount)
+
+            let contentLabel = 'Answer'&$(i);
+
+            left join (keyOnlyTable)
+            load
+                __KEY_thread_message_concat
+                ,%DateTime_Answer
+                ,[%SourceType]
+                ,Answer as $(contentLabel)
+            resident answers_tmp
+                where recordCount = $(i);
+
+        next i;
+
+        drop table answers_tmp;
+
+        for i = 1 to $(vMaxRecordCount)
+
+            let contentField 			= 'Answer'&$(i);
+
+            let concatField		 		= 'Concat'&$(i);
+            let dropconcatField			= 'Concat'&($(i)-1);
+
+            let tableName 				= 'keyOnlyTableConcat'&$(i);
+            let dropTable	 			= 'keyOnlyTableConcat'&($(i)-1);
+
+
+            if $(i) = 1 then
+                $(tableName):
+                load
+                    *
+                    ,$(contentField) as $(concatField)
+                resident keyOnlyTable;
+                    drop table keyOnlyTable;
+                    drop field $(contentField);
+            else 
+                $(tableName):
+                load 
+                    *
+                    ,$(dropconcatField) &
+                        if( len($(contentField))>0
+                            ,'.'&chr(13)&chr(13)&$(contentField) 
+                            ,'')
+                                                        as $(concatField)
+                resident $(dropTable);
+                    drop table $(dropTable);
+                    drop field $(dropconcatField);
+                    drop field $(contentField);
+
+            end if
+
+        next i;
+
+        rename field $(concatField) to Answer;
+        rename table $(tableName) to Answers_tmp2;
+
+
+		answers_spine:
+        NoConcatenate load distinct *
+        resident answers_spine_tmp;
+        	drop table answers_spine_tmp;
+  
+        left join (answers_spine)
+        load * resident Answers_tmp2;
+          drop table Answers_tmp2;
+ 
+ 
+      left join (answers_spine)
+      load
+      	__KEY_thread_message_concat
+        ,[Answers Error Code]
+        ,[Answers Error Detail]
+      resident   errors_answers_tmp;
+      	drop table errors_answers_tmp;
+	
+	Answers_tmp3:
+    load *
+    	,if( len([Answers Error Code]) > 0
+        		or wildmatch(upper(Answer),'*FAST MODE DIDN' & chr(39) &'T RESULT IN A CONCLUSIVE ANSWER*')=1
+            	,'Y'
+                ,'N')					as [Answers Error Flag]
+                
+    resident answers_spine;
+    	drop table answers_spine;
+             
+
+        if $(vAnswersQVD_Exists) = 1 then
+
+            concatenate (Answers_tmp3)
+            load *
+            FROM [$(vQVDFullPath)ai_monitoring_Extract_AgenticAnswersAnswers.qvd](qvd);
+
+        end if
+        
+        Answers_tmp4:
+        NoConcatenate load distinct *
+        resident Answers_tmp3;
+        	drop table Answers_tmp3;
+  
+  
+  
+let vTableRowCount = 0;
+let vTableRowCount = alt(NoOfRows('Answers_tmp4'),0);
+
+trace === Extract step 10/14, Agentic Answers table - $(vTableRowCount) rows. ===;  
+  
+  
+        STORE [Answers_tmp4] INTO [$(vQVDFullPath)ai_monitoring_Extract_AgenticAnswersAnswers.qvd](qvd);
+		drop table Answers_tmp4;
+        
+    end if
+
+end if
+
+
+
+
+/*
+	11. MCP Aggr
+*/
+let vMCPAggr_DateFilter = '&eventTime='&vMCPAggrQVD_MaxTimestamp& '/9999-01-01T00:00:00Z';
+trace vMCPAggr_DateFilter = $(vMCPAggr_DateFilter);
+LET vNextURL = ''; 
+
+if $(vDataExists_MCPAuditData) > 0 then
+
+    MCP_Aggr_tmp:
+    load * inline [__PH_MCP_aggr];
+
+    Do
+
+        RestConnectorMasterTable:
+        SQL SELECT 
+            "__KEY_root",
+            (SELECT 
+                "id",
+                "contentType",
+                "eventId",
+                "eventTime",
+                "eventType",
+                "source",
+                "tenantId",
+                "userId",
+                "__KEY_data",
+                "__FK_data",
+                (SELECT 
+                    "toolCount",
+                    "totalLatencyMs",
+                    "__KEY_data_u0",
+                    "__FK_data_u0",
+                    (SELECT 
+                        "@Value",
+                        "__FK_eventIds"
+                    FROM "eventIds" FK "__FK_eventIds" ArrayValueAlias "@Value")
+                FROM "data" PK "__KEY_data_u0" FK "__FK_data_u0"),
+                (SELECT 
+                    "__KEY_extensions",
+                    "__FK_extensions",
+                    (SELECT 
+                        "__FK_actor"
+                    FROM "actor" FK "__FK_actor"),
+                    (SELECT 
+                        "@Value" AS "@Value_u0",
+                        "__FK_updates"
+                    FROM "updates" FK "__FK_updates" ArrayValueAlias "@Value_u0")
+                FROM "extensions" PK "__KEY_extensions" FK "__FK_extensions"),
+                (SELECT 
+                    "__KEY_links",
+                    "__FK_links",
+                    (SELECT 
+                        "href",
+                        "__FK_self"
+                    FROM "self" FK "__FK_self")
+                FROM "links" PK "__KEY_links" FK "__FK_links")
+            FROM "data" PK "__KEY_data" FK "__FK_data"),
+            (SELECT 
+                "__KEY_links_u0",
+                "__FK_links_u0",
+                (SELECT 
+                    "href" AS "href_u0",
+                    "__FK_self_u0"
+                FROM "self" FK "__FK_self_u0"),
+                (SELECT 
+                    "href" AS "href_u1",
+                    "__FK_next"
+                FROM "next" FK "__FK_next")
+            FROM "links" PK "__KEY_links_u0" FK "__FK_links_u0")
+        FROM JSON (wrap on) "root" PK "__KEY_root"
+        WITH CONNECTION (
+             URL "https://$(vTenantName)/api/v1/audits?limit=100&sort=-eventTime&eventType=com.qlik.ai.mcp.tool.calls.aggregated$(vMCPAggr_DateFilter)$(vNextURL)"
+          );
+          
+		trace STEP 11, pulling from:;
+        trace https://$(vTenantName)/api/v1/audits?limit=100&sort=-eventTime&eventType=com.qlik.ai.mcp.tool.calls.aggregated$(vMCPAggr_DateFilter)$(vNextURL);
+
+        aggr_tmp1:
+        LOAD	
+        	'$(vTenantName)'		as [Tenant Name],
+			'$(vTenantId)'			as [Tenant ID],
+            '$(vTenantId)|'&[eventId]				
+            						as __KEY_MCP_event,
+            '$(vTenantId)|'&'mcpSpaceNoId' 			
+            						as __KEY_space,
+            'MCP'					as [Question Source],
+            date(floor([eventTime]),'$(DateFormat)')		
+                                    as Date,
+            time([eventTime])		as Time,
+            [eventTime]				as [%DateTime_MCPAggr],
+            //[tenantId]				as [Tenant ID],
+            '$(vTenantId)|'&[userId]				
+            						as [Question Asked By Id],
+            [__KEY_data]        
+        RESIDENT RestConnectorMasterTable
+        WHERE NOT IsNull([__FK_data]);
+
+
+        left join (aggr_tmp1)
+        LOAD	
+            1/[toolCount]			as [Question Count],
+            [__KEY_data_u0],
+            [__FK_data_u0] 			AS [__KEY_data]        
+        RESIDENT RestConnectorMasterTable
+        WHERE NOT IsNull([__FK_data_u0]);
+
+
+        left join (aggr_tmp1)
+        LOAD	
+            '$(vTenantId)|'&[@Value] 				
+            						as __KEY_tool,
+            [__FK_eventIds] 		AS [__KEY_data_u0]
+        RESIDENT RestConnectorMasterTable
+        WHERE NOT IsNull([__FK_eventIds]);
+
+        concatenate (MCP_Aggr_tmp)
+        load * 
+            ,'$(vTenantId)|'&__KEY_MCP_event&'|'&__KEY_tool 
+            						as __KEY_thread_message_concat
+        resident aggr_tmp1;
+            drop table aggr_tmp1;
+
+        [NextURL]:
+        LOAD	[href_u1] AS [NextURL]
+        RESIDENT RestConnectorMasterTable
+        WHERE NOT IsNull([__FK_next]);
+
+        DROP TABLE RestConnectorMasterTable;
+
+        LET vNextURL = TextBetween(Peek('NextURL',0,'NextURL'),'&next=',Null());
+
+
+        IF SubStringCount('$(vNextURL)','&') >= 1 THEN
+            LET vNextURL = TextBetween('$(vNextURL)',Null(),'&');
+        END IF
+
+        LET vNextURL = '&next=' & '$(vNextURL)';
+
+        LET vNextURLRows = NoOfRows('NextURL');
+
+        DROP TABLE NextURL;
+
+    Loop While $(vNextURLRows)>0;
+
+
+    drop fields 	__PH_MCP_aggr
+                    ,__KEY_data
+                    ,__KEY_data_u0
+    from MCP_Aggr_tmp;
+
+
+    if $(vMCPAggrQVD_Exists) = 1 then
+
+        concatenate (MCP_Aggr_tmp)
+        load *
+        FROM [$(vQVDFullPath)ai_monitoring_Extract_MCPaggr.qvd](qvd);
+
+    end if
+
+    MCP_Aggr:
+    NoConcatenate load distinct *
+    resident MCP_Aggr_tmp;
+        drop table MCP_Aggr_tmp;
+
+let vTableRowCount = 0;
+let vTableRowCount = alt(NoOfRows('MCP_Aggr'),0);
+
+trace === Extract step 11/14, MCP Aggr table - $(vTableRowCount) rows. ===;  
+
+    STORE [MCP_Aggr] INTO [$(vQVDFullPath)ai_monitoring_Extract_MCPaggr.qvd](qvd); 
+    drop table MCP_Aggr;
+    
+ end if  
+    
+    
+   
+   
+   
+   
+/*
+	12. MCP Executions
+*/
+if $(vDataExists_MCPAuditData) > 0 then
+
+    let vMCPExecutions_DateFilter = '&eventTime='&vMCPExecutionsQVD_MaxTimestamp& '/9999-01-01T00:00:00Z';
+    trace vMCPExecutions_DateFilter = $(vMCPExecutions_DateFilter);
+    LET vNextURL = ''; 
+
+    MCP_Executions_tmp:
+    load * inline [__PH_MCP_execution];
+
+    Do
+
+        RestConnectorMasterTable:
+        SQL SELECT 
+            "__KEY_root",
+            (SELECT 
+                "id",
+                "contentType",
+                "eventId",
+                "eventTime",
+                "eventType",
+                "source",
+                "tenantId",
+                "userId",
+                "__KEY_data",
+                "__FK_data",
+                (SELECT 
+                    "latency",
+                    "name",
+                    "userAgent",
+                    "error",
+                    "__FK_data_u0"
+                FROM "data" FK "__FK_data_u0"),
+                (SELECT 
+                    "__KEY_extensions",
+                    "__FK_extensions",
+                    (SELECT 
+                        "__FK_actor"
+                    FROM "actor" FK "__FK_actor"),
+                    (SELECT 
+                        "@Value",
+                        "__FK_updates"
+                    FROM "updates" FK "__FK_updates" ArrayValueAlias "@Value")
+                FROM "extensions" PK "__KEY_extensions" FK "__FK_extensions"),
+                (SELECT 
+                    "__KEY_links",
+                    "__FK_links",
+                    (SELECT 
+                        "href",
+                        "__FK_self"
+                    FROM "self" FK "__FK_self")
+                FROM "links" PK "__KEY_links" FK "__FK_links")
+            FROM "data" PK "__KEY_data" FK "__FK_data"),
+            (SELECT 
+                "__KEY_links_u0",
+                "__FK_links_u0",
+                (SELECT 
+                    "href" AS "href_u0",
+                    "__FK_self_u0"
+                FROM "self" FK "__FK_self_u0"),
+                (SELECT 
+                    "href" AS "href_u1",
+                    "__FK_next"
+                FROM "next" FK "__FK_next")
+            FROM "links" PK "__KEY_links_u0" FK "__FK_links_u0")
+        FROM JSON (wrap on) "root" PK "__KEY_root"
+        WITH CONNECTION (
+                 URL "https://$(vTenantName)/api/v1/audits?limit=100&sort=-eventTime&eventType=com.qlik.ai.mcp.tool.executed$(vMCPAggr_DateFilter)$(vNextURL)"
+        );
+        
+        trace STEP 12, pulling from:;
+        trace https://$(vTenantName)/api/v1/audits?limit=100&sort=-eventTime&eventType=com.qlik.ai.mcp.tool.executed$(vMCPAggr_DateFilter)$(vNextURL);
+        
+
+
+        executions_data_tmp:
+        LOAD	
+        	'$(vTenantName)'		as [Tenant Name],
+			'$(vTenantId)'			as [Tenant ID],
+            '$(vTenantId)|'&eventId 				
+            						as __KEY_tool,
+            '$(vTenantId)|'&[id]	as id,
+            '$(vTenantId)|'&[eventId]
+            						as eventId,
+            date(floor([eventTime]),'$(DateFormat)')		
+                                    as [Tool Call Date], 
+            time([eventTime])		as [Tool Call Time],
+            [eventTime]				as [%DateTime_MCPExecutions], 
+            [__KEY_data],
+            [__FK_data] 			AS [__KEY_root]                                        
+        RESIDENT RestConnectorMasterTable
+        WHERE NOT IsNull([__FK_data]);
+
+        left join (executions_data_tmp)
+        LOAD	
+            [latency]				as [Tool Call Latency],
+            [name]					as [Tool Call Name],
+            [userAgent]				as [Tool Call User Agent],
+            [error]					as [Tool Call Error Message],
+            if(len(error)>0,1,0)	as [Tool Call Error Count],
+            [__FK_data_u0] 			AS [__KEY_data]
+        RESIDENT RestConnectorMasterTable
+        WHERE NOT IsNull([__FK_data_u0]);
+
+        [NextURL]:
+        LOAD	
+            [href_u1] AS [NextURL]
+        RESIDENT RestConnectorMasterTable
+        WHERE NOT IsNull([__FK_next]);
+
+        DROP TABLE RestConnectorMasterTable;
+
+        Concatenate (MCP_Executions_tmp)
+        load * resident executions_data_tmp;
+            drop table executions_data_tmp;
+
+        LET vNextURL = TextBetween(Peek('NextURL',0,'NextURL'),'&next=',Null());
+
+        IF SubStringCount('$(vNextURL)','&') >= 1 THEN
+            LET vNextURL = TextBetween('$(vNextURL)',Null(),'&');
+        END IF
+
+        LET vNextURL = '&next=' & '$(vNextURL)';
+
+        LET vNextURLRows = NoOfRows('NextURL');
+
+        DROP TABLE NextURL;
+
+    Loop While $(vNextURLRows)>0;
+
+    drop fields 
+        __PH_MCP_execution 
+        ,__KEY_data
+        ,[__KEY_root]
+    from MCP_Executions_tmp;
+
+    if $(vMCPExecutionsQVD_Exists) = 1 then
+
+        concatenate (MCP_Executions_tmp)
+        load *
+        FROM [$(vQVDFullPath)ai_monitoring_Extract_MCPexecutions.qvd](qvd);
+
+    end if
+
+    MCP_Executions_tmp2:
+    NoConcatenate load distinct *
+    resident MCP_Executions_tmp;
+        drop table MCP_Executions_tmp;
+
+let vTableRowCount = 0;
+let vTableRowCount = alt(NoOfRows('MCP_Executions_tmp2'),0);
+
+trace === Extract step 12/14, MCP Executions table - $(vTableRowCount) rows. ===;
+
+    STORE [MCP_Executions_tmp2] INTO [$(vQVDFullPath)ai_monitoring_Extract_MCPexecutions.qvd](qvd);   
+	drop table MCP_Executions_tmp2;
+    
+end if 
+
+
+
+
+
+/*
+	13. Quotas
+*/
+quota_tmp:
+load * inline [
+__PH_quota
+];
+
+RestConnectorMasterTable:
+SQL SELECT 
+	"__KEY_root",
+	(SELECT 
+		"blocked",
+		"capacityLimit",
+		"closeToOverage",
+		"consumptionReportId",
+		"customerFacing",
+		"globalUsage",
+		"guardrailLimit",
+		"localUsage",
+		"overage",
+		"periodEnd",
+		"periodStart",
+		"periodType",
+		"resourceAction",
+		"resourceType",
+		"scopeMapping",
+		"taskDescription",
+		"taskName",
+		"tenantId",
+		"updateTime",
+		"__KEY_data",
+		"__FK_data",
+		(SELECT 
+			"@Value",
+			"__FK_scope"
+		FROM "scope" FK "__FK_scope" ArrayValueAlias "@Value")
+	FROM "data" PK "__KEY_data" FK "__FK_data")
+FROM JSON (wrap on) "root" PK "__KEY_root"
+WITH CONNECTION (
+      URL "https://$(vTenantName)/api/v1/consumption/executions?filter=taskName%20eq%20%22questionsAsked%22"
+);
+
+
+concatenate (quota_tmp)
+LOAD
+	'$(vTenantName)'			as [Tenant Name],
+	'$(vTenantId)'				as [Tenant ID],
+	[capacityLimit]				as [Monthly Questions Limit],
+	[globalUsage]				as [Questions Consumed (global)],
+	[localUsage]				as [Questions Consumed (local)],
+	date(floor([periodStart]),'$(DateFormat)')	
+    							as Date,
+//      'Quota'					aS [Question Source],
+	1							as [Quota Flag],
+     '$(vLicenseNumber)'		as [License Number],
+     '$(vTenantId)'&'|'&num(date(floor([periodStart]),'$(DateFormat)'))&'|'&'Quota'
+     							as [__KEY_thread_message_concat]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__FK_data]);
+
+DROP TABLE RestConnectorMasterTable;
+
+
+
+if $(vAnswersQuestionsQuotaQVD_Exists) = 1 then
+	
+    concatenate (quota_tmp)
+    load *
+    FROM [$(vQVDFullPath)ai_monitoring_Extract_Quotas.qvd](qvd);
+    
+end if
+
+quota_tmp2:
+NoConcatenate load 
+	max([Monthly Questions Limit]) 			as [Monthly Questions Limit]
+    ,max([Questions Consumed (global)]) 	as [Questions Consumed (global)]
+    ,max([Questions Consumed (local)]) 		as [Questions Consumed (local)]
+    ,Date
+    ,[Quota Flag]
+    ,[__KEY_thread_message_concat]
+    ,[License Number]
+resident quota_tmp
+	group by Date, [Quota Flag], [__KEY_thread_message_concat], [License Number]
+;
+	drop table quota_tmp;
+
+let vTableRowCount = 0;
+let vTableRowCount = alt(NoOfRows('quota_tmp2'),0);
+
+trace === Extract step 13/14, Quota table - $(vTableRowCount) rows. ===;
+
+STORE [quota_tmp2] INTO [$(vQVDFullPath)ai_monitoring_Extract_Quotas.qvd](qvd);
+drop table quota_tmp2;
+
+
+/*
+	14. New Answers Audit Data
+*/
+let vAnswersAuditQVD_DateFilter = '&eventTime='&vAnswersAuditQVD_MaxTimestamp& '/9999-01-01T00:00:00Z';
+trace vAnswersAuditQVD_DateFilter = $(vAnswersAuditQVD_DateFilter);
+
+ 
+LET vNextURL = ''; 
+
+
+
+if $(vDataExists_AnswersAuditTable) > 0 then
+
+    Audit_Answers_tmp: 
+        LOAD * INLINE [__PH_agentic_answers_audit];
+
+    Do
+
+        RestConnectorMasterTable:
+        SQL SELECT 
+            "__KEY_root",
+            (SELECT 
+                "__FK_data",
+                "__KEY_data",
+                (SELECT 
+                    "createdAt",
+                    "id" AS "id_u0",
+                    "ownerId",
+                    "role",
+                    "tenantId",
+                    "threadId",
+                    "type" AS "type_u0",
+                    "__KEY_data_u0",
+                    "__FK_data_u0",
+                    (SELECT 
+                        "id",
+                        "reasoningMode",
+                        "type",
+                        "__FK_context"
+                    FROM "context" FK "__FK_context")
+                FROM "data" PK "__KEY_data_u0" FK "__FK_data_u0")
+            FROM "data" PK "__KEY_data" FK "__FK_data"),
+            (SELECT 
+                "__FK_links_u0",
+                "__KEY_links_u0",
+                (SELECT 
+                    "href" AS "href_u1",
+                    "__FK_next"
+                FROM "next" FK "__FK_next")
+            FROM "links" PK "__KEY_links_u0" FK "__FK_links_u0")
+        FROM JSON (wrap on) "root" PK "__KEY_root"
+        WITH CONNECTION (
+                   URL "https://$(vTenantName)/api/v1/audits?limit=10&sort=-eventTime&source=com.qlik/assistants-gateway&eventType=com.qlik.v1.thread.message.created$(vAnswersLegacyAnswersAuditQVD_DateFilter)$(vNextURL)"
+                );
+
+		trace STEP 14, pulling from:;
+        trace https://$(vTenantName)/api/v1/audits?limit=10&sort=-eventTime&source=com.qlik/assistants-gateway&eventType=com.qlik.v1.thread.message.created$(vAnswersLegacyAnswersAuditQVD_DateFilter)$(vNextURL);
+        
+
+        [data]:
+        LOAD
+        	'$(vTenantName)'						as [Tenant Name],
+			'$(vTenantId)'							as [Tenant ID],
+            '$(vTenantId)|'&threadId&'|'&id_u0 						
+            										as "__KEY_thread_message_concat",
+            '1'										as "Question Count",
+            [threadId]								as "Thread Id",
+            [id_u0] 								AS "Message Id",    
+            date(floor([createdAt])) 				as Date,
+            time(createdAt)							as Time,
+            createdAt 								as "%DateTime_AnswersAudit",
+            '$(vTenantId)|'&[ownerId]								
+            										as "Question Asked By Id",
+            [role],
+            [tenantId],
+            [type_u0] 								AS [human_or_ai],
+            [__KEY_data_u0],
+            [__FK_data_u0] 							AS [__KEY_data]
+        RESIDENT RestConnectorMasterTable
+        WHERE NOT IsNull([__FK_data_u0]);
+
+        left join (data)
+        LOAD	
+            [reasoningMode]								as [Reasoning Mode],
+            if( upper([type]) = 'APP'
+              ,'Qlik Answers - Application'
+              ,if( upper([type]) = 'ASSISTANT'
+                  ,'Qlik Answers - Assistant'
+                  ,if ( upper([type]) = 'HELP'
+                      ,'Help Agent'
+                      ,if( upper([type]) = 'PREDICT'
+                          ,'Qlik Answers - Predict'
+                          ,if( upper([type]) = 'DATA-QUALITY'
+                              ,'Qlik Answers - Data Quality'
+                                  ,if( upper([type]) = 'BUSINESS-GLOSSARY'
+                                      ,'Qlik Answers - Business Glossary'
+                                      	,if( upper([type]) = 'DATA-PRODUCT'
+                                        	,'Qlik Answers - Data Product'
+                                            	,if( upper([type]) = 'AUTOMATION'
+	                                            ,'Qlik Answers - Automation'
+                                                ,'Qlik Answers'
+                                                ))))))))	as [Question Source],
+
+                if( upper([type]) = 'APP'
+                	,'Application'
+                    ,if( upper([type]) = 'ASSISTANT'
+                        ,'Assistant'
+                        ,if ( upper([type]) = 'HELP'
+                            ,'Help Agent'
+                            ,if( upper([type]) = 'PREDICT'
+                                ,'Predict'
+                                ,if( upper([type]) = 'DATA-QUALITY'
+                                    ,'Data-Quality'
+                                        ,if( upper([type]) = 'BUSINESS-GLOSSARY'
+                                            ,'Business-Glossary'
+                                                ,if( upper([type]) = 'DATA-PRODUCT'
+                                                    ,'Data Product'
+                                                    	,if( upper([type]) = 'AUTOMATION'
+                                                        ,'Automation'
+                                                    	,'Other'
+                        ))))))))											as [Question Origin],
+
+            [__FK_context] 								AS [__KEY_data_u0]
+        RESIDENT RestConnectorMasterTable
+        WHERE NOT IsNull([__FK_context]);
+
+
+		drop fields __KEY_data_u0, __KEY_data;
+
+        concatenate (Audit_Answers_tmp)
+        load * resident data
+            //where upper(human_or_ai) = 'HUMAN'
+        ;
+            drop table data;
+
+
+        [NextURL]:
+        LOAD	[href_u1] AS [NextURL]
+        RESIDENT RestConnectorMasterTable
+        WHERE NOT IsNull([__FK_next]);
+
+
+        DROP TABLE RestConnectorMasterTable;
+
+        LET vNextURL = TextBetween(Peek('NextURL',0,'NextURL'),'&next=',Null());
+
+
+        IF SubStringCount('$(vNextURL)','&') >= 1 THEN
+            LET vNextURL = TextBetween('$(vNextURL)',Null(),'&');
+        END IF
+
+        LET vNextURL = '&next=' & '$(vNextURL)';
+
+        LET vNextURLRows = NoOfRows('NextURL');
+
+        DROP TABLE NextURL;
+
+
+    Loop While $(vNextURLRows)>0;
+
+
+
+    if $(vAnswersAuditQVD_Exists) = 1 then
+
+        concatenate (Audit_Answers_tmp)
+        load *
+        FROM [$(vQVDFullPath)ai_monitoring_Extract_AnswersAudit.qvd](qvd);
+
+    end if
+
+	drop field __PH_agentic_answers_audit from Audit_Answers_tmp;
+
+    Audit_Answers:
+    NoConcatenate load distinct *
+    resident Audit_Answers_tmp;
+        drop table Audit_Answers_tmp;
+
+    let vTableRowCount = 0;
+    let vTableRowCount = alt(NoOfRows('Audit_Answers'),0);
+
+    trace === Extract step 14/14, Answers Audit table - $(vTableRowCount) rows. ===;
+
+        STORE [Audit_Answers] INTO [$(vQVDFullPath)ai_monitoring_Extract_AnswersAudit.qvd](qvd); 
+        drop table Audit_Answers;
+    
+end if
+///$tab Fact Table
+/*
+	1.  Agentic Answers (removing the 'Help' questions because they do not count)
+    	join each question with its Answer
+*/
+
+let vTableRowCount = alt(QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_AnswersAudit.qvd'),0);
+if $(vTableRowCount) > 0 then
+    AgenticAnswers_tmp1:       
+    LOAD
+        __KEY_thread_message_concat 		as __KEY_thread_message_concat,
+        __KEY_thread_message_concat			as __KEY_thread_message_concat_dupe_check,
+        "Question Count" 					as [Question Count_tmp],
+        "Thread Id",
+        "Message Id",
+        "Date",
+        "Time",
+        "Question Asked By Id",
+        "Question Source",
+        0									as [Quota Flag]
+    FROM [$(vQVDFullPath)ai_monitoring_Extract_AnswersAudit.qvd]
+    (qvd)
+        where "Question Source" <> 'Help Agent' 
+        and upper(human_or_ai) = 'HUMAN'
+    ;
+
+
+
+let vTableRowCount = alt(QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_AgenticAnswersMessages.qvd'),0);
+
+if $(vTableRowCount) > 0 then
+    left join (AgenticAnswers_tmp1)
+    LOAD
+        __KEY_thread_message_concat,
+        __KEY_app,
+        __KEY_assistant,
+//         "Message Id",
+//         "Question Asked By Id",
+//         "Thread Id",
+//         "Date",
+//         "Time",
+        "Message Feedback",
+        "Matching Human Message Id",
+        "Message Source Id",
+        "Message Question",
+        "Content Id",
+//         "Question Count" as "Question Count_tmp",
+//         "Question Source",
+        '' as %agenticAnswers
+    FROM [$(vQVDFullPath)ai_monitoring_Extract_AgenticAnswersMessages.qvd]
+    (qvd)
+        where [Question Source] <> 'Help Agent'
+    ;
+    
+    
+    concatenate (AgenticAnswers_tmp1)
+    LOAD
+        __KEY_thread_message_concat,
+        __KEY_app,
+        __KEY_assistant,
+        "Message Id",
+        "Question Asked By Id",
+        "Thread Id",
+        "Date",
+        "Time",
+        "Message Feedback",
+        "Matching Human Message Id",
+        "Message Source Id",
+        "Message Question",
+        "Content Id",
+        0 as "Question Count_tmp",
+        0 as "Quota Flag",
+        "Question Source",
+        '' as %agenticAnswers
+    FROM [$(vQVDFullPath)ai_monitoring_Extract_AgenticAnswersMessages.qvd]
+    (qvd)
+        where [Question Source] <> 'Help Agent' and not exists(__KEY_thread_message_concat_dupe_check,__KEY_thread_message_concat)
+    ;    
+end if    
+    
+    let vFact_AgenticAnswers = 1;
+    trace === Fact table step 1/6, Agentic Answers data $(vTableRowCount) rows. ===;
+    if alt(QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_AgenticAnswersAnswers.qvd'),0) > 0 then
+    
+        left join (AgenticAnswers_tmp1)
+        LOAD
+            __KEY_thread_message_concat,
+            Answer,
+            [Answers Error Flag]
+        FROM [$(vQVDFullPath)ai_monitoring_Extract_AgenticAnswersAnswers.qvd]
+        (qvd);
+
+    	AgenticAnswers_tmp2:
+        load
+            __KEY_thread_message_concat,
+            if(len(__KEY_app)=0 or len(subfield(__KEY_app,'|',2))=0
+            	,'$(vTenantId)|noAppOrAssistantCatch'
+                ,__KEY_app)					as __KEY_app,
+            __KEY_assistant,
+            "Message Id",
+            "Question Asked By Id",
+            "Thread Id",
+            "Date",
+            "Time",
+            "Message Feedback",
+            "Matching Human Message Id",
+            "Message Source Id",
+            "Message Question",
+            "Content Id",
+            if( [Answers Error Flag]='Y'
+            	,0
+            	,"Question Count_tmp") as "Question Count",
+            "Question Source",
+            %agenticAnswers,
+            Answer,
+            [Answers Error Flag],
+            "Quota Flag"
+		resident AgenticAnswers_tmp1;
+        	drop table AgenticAnswers_tmp1;
+    else
+        AgenticAnswers_tmp2:
+        load
+            __KEY_thread_message_concat,
+            if(len(__KEY_app)=0 or len(subfield(__KEY_app,'|',2))=0
+            	,'$(vTenantId)|noAppOrAssistantCatch'
+                ,__KEY_app)					as __KEY_app,
+            __KEY_assistant,
+            "Message Id",
+            "Question Asked By Id",
+            "Thread Id",
+            "Date",
+            "Time",
+            "Message Feedback",
+            "Matching Human Message Id",
+            "Message Source Id",
+            "Message Question",
+            "Content Id",
+            "Question Count_tmp" as "Question Count",
+            "Question Source",
+            "Quota Flag",
+            %agenticAnswers
+		resident AgenticAnswers_tmp1;
+        	drop table AgenticAnswers_tmp1;
+    
+    end if
+else
+	let vFact_AgenticAnswers = 0;
+    trace === Fact table step 1/6, Agentic Answers: no data... skipping ===;
+end if
+
+
+
+
+
+
+/*
+	2. Legacy Answers data
+*/
+let vTableRowCount = alt(QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_LegacyQuestionsAndAnswers.qvd'),0);
+
+if $(vTableRowCount) > 0 then
+    Answers_legacy_tmp1:
+    LOAD
+        __KEY_thread_message_concat,
+        "Assistant Id"						as __KEY_assistant,
+        "Thread Id",
+        "Question Asked By Id",
+        "Thread Create DateTime",
+        "Message Id",
+        "Message Question",
+        Answer_legacy						as Answer,
+        "Date",
+        "Time",
+        [Question Count],
+        [Question Source],
+        0 as "Quota Flag",
+        '' as %legacyAnswers
+    FROM [$(vQVDFullPath)ai_monitoring_Extract_LegacyQuestionsAndAnswers.qvd]
+    (qvd);
+    
+    let vFact_LegacyAnswers = 1;
+    trace === Fact table step 2/6, Legacy Answers data $(vTableRowCount) rows. ===;
+else
+	let vFact_LegacyAnswers = 0;
+    trace === Fact table step 2/6, Legacy Answers data: no data skipping ===;
+end if
+
+
+
+
+
+/*
+	3. Legacy Audit Data
+*/
+if alt(QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_LegacyQuestionsAndAnswers.qvd'),0) > 0 then
+	
+    trace ai_monitoring_Extract_LegacyQuestionsAndAnswers QVD exists, loading table.;
+    AlreadyExistingMessages:
+    LOAD DISTINCT
+        '$(vTenantId)|'&"Message Id"						as [Existing Message Id]
+    FROM [$(vQVDFullPath)ai_monitoring_Extract_LegacyQuestionsAndAnswers.qvd]
+    (qvd);
+else
+	
+    trace ai_monitoring_Extract_LegacyQuestionsAndAnswers QVD does not exist, loading skeleton table.;
+	AlreadyExistingMessages:
+    load * inline [
+    Existing Message Id
+    ];
+end if    
+
+let vTableRowCount = alt(QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_LegacyAnswersAudit.qvd'),0);
+
+if $(vTableRowCount) > 0 then
+    Legacy_answers_audit_data_tmp1:
+    LOAD
+        if(len([Message Id])=0,[alt_Message Id],[Message Id]) 	as [Message Id],
+        '$(vTenantId)|'&[alt_Message Id] 						as __KEY_thread_message_concat,
+        "Rejection Reason",
+        "Question Count",
+        "Question Source",
+        "Message Question",
+        __KEY_assistant,
+        "Date",
+        "Time",
+        "Question Asked By Id",
+        0 as "Quota Flag",
+        '' as %legacyAnswersAudit
+    FROM [$(vQVDFullPath)ai_monitoring_Extract_LegacyAnswersAudit.qvd]
+    (qvd)
+        where not exists ([Existing Message Id],if(len([Message Id])=0,'$(vTenantId)|'&[alt_Message Id],'$(vTenantId)|'&[Message Id]))
+    ;
+    
+    drop table AlreadyExistingMessages;
+    
+    let vFact_AnswersAudit = alt(NoOfRows('Legacy_answers_audit_data_tmp1'),0);
+    	
+        if $(vFact_AnswersAudit) = 0 then
+        	drop table Legacy_answers_audit_data_tmp1;
+            trace === Fact table step 3/6, Legacy Answers Audit data: no data skipping ===;
+        else 
+        	trace === Fact table step 3/6, Legacy Answers Audit data $(vFact_AnswersAudit) rows. ===;
+        end if
+        
+else
+	drop table AlreadyExistingMessages;
+    
+    let vFact_AnswersAudit = 0;
+    trace === Fact table step 3/6, Legacy Answers Audit data: no data skipping ===;
+end if    
+
+
+
+
+
+/*
+	4. MCP
+*/
+let vTableRowCount = alt(QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_MCPaggr.qvd'),0);
+
+if $(vTableRowCount) > 0 then
+
+    MCP_aggr_tmp1:
+    LOAD
+        __KEY_MCP_event,
+//         __KEY_space,
+        "Question Source",
+        "Date",
+        "Time",
+        //"Tenant ID",
+        "Question Asked By Id",
+        "Question Count",
+        __KEY_tool,
+        __KEY_thread_message_concat,
+        0 as "Quota Flag",
+        '' as %MCP
+    FROM [$(vQVDFullPath)ai_monitoring_Extract_MCPaggr.qvd]
+    (qvd);
+    
+    if alt(QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_MCPexecutions.qvd'),0) > 0 then
+        left join (MCP_aggr_tmp1)
+        LOAD
+            __KEY_tool
+            ,[Tool Call Date]
+            ,[Tool Call Time]    
+            ,[Tool Call Latency]
+            ,[Tool Call Name]
+            ,[Tool Call User Agent]
+            ,[Tool Call Error Message]
+            ,[Tool Call Error Count]
+        FROM [$(vQVDFullPath)ai_monitoring_Extract_MCPexecutions.qvd]
+        (qvd);
+	end if
+    
+	let vFact_MCPAggr = 1;
+    trace === Fact table step 4/6, MCP data $(vTableRowCount) rows. ===;
+else
+	let vFact_MCPAggr = 0;
+    trace === Fact table step 4/6, MCP data: no data skipping ===;
+end if
+
+
+
+
+/*
+	5. Quota
+*/
+let vTableRowCount = alt(QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_Quotas.qvd'),0);
+
+if $(vTableRowCount) > 0 then
+
+    quota_tmp1:
+    LOAD
+        "Date",
+        "Monthly Questions Limit",
+        "Questions Consumed (global)",
+        "Questions Consumed (local)",
+        [__KEY_thread_message_concat],
+        [Quota Flag],
+        [License Number]
+    FROM [$(vQVDFullPath)ai_monitoring_Extract_Quotas.qvd]
+    (qvd);
+	
+    let vFact_Quota = 1;
+    trace === Fact table step 5/6, Quota data $(vTableRowCount) rows. ===;
+else
+	let vFact_Quota = 0;
+    trace === Fact table step 5/6, Quota data: no data skipping ===;
+end if
+
+/*
+	6. concatenate all together
+*/
+
+Fact_tmp1:
+load * inline [
+	%fact, __KEY_thread_message_concat, __KEY_assistant, __KEY_app
+];
+
+// --- concat agentic answers ---
+if $(vFact_AgenticAnswers) > 0 then
+
+	concatenate (Fact_tmp1)
+    load * resident AgenticAnswers_tmp2;
+    	drop table AgenticAnswers_tmp2;
+        
+    drop field %agenticAnswers;
+
+end If
+
+
+
+// --- concat legacy answers ---
+if $(vFact_LegacyAnswers) > 0 then
+
+	concatenate (Fact_tmp1)
+    load * resident Answers_legacy_tmp1;
+    	drop table Answers_legacy_tmp1;
+        
+    drop field %legacyAnswers;
+
+end if
+
+
+
+// --- concat audit answers ---
+if $(vFact_AnswersAudit) > 0 then
+
+	concatenate (Fact_tmp1)
+    load * resident Legacy_answers_audit_data_tmp1;
+    	drop table Legacy_answers_audit_data_tmp1;
+        
+    drop field %legacyAnswersAudit;
+
+end if
+
+
+
+// --- concat MCP aggr ---
+if $(vFact_MCPAggr) > 0 then
+
+	concatenate (Fact_tmp1)
+    load * resident MCP_aggr_tmp1;
+    	drop table MCP_aggr_tmp1;
+        
+    drop field %MCP;
+
+end if
+
+// --- concat quota ---
+if $(vFact_Quota) > 0 then
+
+	concatenate (Fact_tmp1)
+    load * resident quota_tmp1;
+    	drop table quota_tmp1;
+
+end if
+
+
+// --- fact table transformations ---
+if alt(NoOfRows('Fact_tmp1'),0) > 0 then
+
+    drop field %fact;
+
+    left join (Fact_tmp1)
+    LOAD
+        [User Id] 		as [Question Asked By Id]
+        ,[User Name] 	as [Question Asked By Name]
+    FROM [$(vQVDFullPath)ai_monitoring_Extract_Users.qvd]
+    (qvd);
+
+    rename table Fact_tmp1 to Fact;
+    
+    let vTableRowCount = NoOfRows('Fact');
+    
+	trace === Fact table step 6/6, Total: $(vTableRowCount) rows. ===;
+
+Else
+	trace === No fact table records produced, exiting script. ===;
+	exit script;
+end if
+///$tab Dimensions
+/*
+	1. Link Table
+*/
+LinkTable_tmp1:
+load distinct 
+	__KEY_thread_message_concat
+  ,__KEY_assistant
+  ,__KEY_assistant as __KEY_assistant_exists_check
+  ,__KEY_app
+  ,__KEY_app as __KEY_app_exists_check
+resident Fact;
+
+// drop these fields from Fact table to avoid a synthetic key
+drop fields __KEY_app, [__KEY_assistant] from Fact;
+
+// create various map tables for space mapping
+// also logic to add in any missing assistant or app Ids
+assistant_to_spaceid_map:
+load * Inline [
+__KEY_assistant, __KEY_space_assistant
+];
+	if alt(QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_Assistants.qvd'),0) > 0 then
+        
+        concatenate (assistant_to_spaceid_map)
+        LOAD
+            __KEY_assistant,
+            __KEY_space as __KEY_space_assistant
+        FROM [$(vQVDFullPath)ai_monitoring_Extract_Assistants.qvd]
+        (qvd);
+        
+        concatenate (LinkTable_tmp1)
+        load
+        	__KEY_assistant
+            ,'' as __KEY_thread_message_concat
+            ,'' as __KEY_app
+        FROM [$(vQVDFullPath)ai_monitoring_Extract_Assistants.qvd]
+        (qvd)
+        where not exists(__KEY_assistant_exists_check,__KEY_assistant)
+        ;
+        
+    end if
+
+application_to_spaceid_map:
+load * Inline [
+__KEY_app, __KEY_space_application
+];
+		concatenate (application_to_spaceid_map)
+        LOAD
+            __KEY_app,
+            __KEY_space as __KEY_space_application
+        FROM [$(vQVDFullPath)ai_monitoring_Extract_Applications.qvd]
+        (qvd);
+        
+        concatenate (LinkTable_tmp1)
+        load
+        	'' as __KEY_assistant
+            ,'' as __KEY_thread_message_concat
+            ,__KEY_app
+        FROM [$(vQVDFullPath)ai_monitoring_Extract_Applications.qvd]
+        (qvd)
+        where not exists(__KEY_app_exists_check,__KEY_app)
+        ;        
+
+
+mcp_to_spaceid_map:
+load * Inline [
+__KEY_thread_message_concat, __KEY_space_mcp
+];
+      if alt(QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_MCPaggr.qvd'),0) > 0 then
+          concatenate (mcp_to_spaceid_map)
+          LOAD
+              __KEY_thread_message_concat,
+              __KEY_space as __KEY_space_mcp
+          FROM [$(vQVDFullPath)ai_monitoring_Extract_MCPaggr.qvd]
+      (qvd);
+      end if
+      
+audit_answers_to_spaceid_map:
+load * inline [
+__KEY_thread_message_concat, __KEY_space_auditAnswers
+];
+      if alt(QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_LegacyAnswersAudit.qvd'),0) > 0 then
+        concatenate (audit_answers_to_spaceid_map)
+        LOAD
+
+            "alt_Message Id" 		as __KEY_thread_message_concat
+            ,__KEY_space 			as __KEY_space_auditAnswers
+        FROM [$(vQVDFullPath)ai_monitoring_Extract_LegacyAnswersAudit.qvd]
+        (qvd);
+      end if
+
+
+// use mapping tables to bring in space ids from the various mapping tables
+LinkTable:
+load 
+	[Tenant Name]
+    ,[Tenant ID]
+    ,__KEY_thread_message_concat
+    ,__KEY_assistant
+    ,__KEY_app
+    ,if( len(__KEY_space_assistant)>0
+    	,__KEY_space_assistant
+        ,if( len(__KEY_space_application)>0
+        	,__KEY_space_application
+            ,if( len(__KEY_space_mcp)>0
+            	,__KEY_space_mcp
+                ,''
+                )))				as __KEY_space
+;
+NoConcatenate load
+    '$(vTenantName)'												as [Tenant Name]
+    ,'$(vTenantId)'													as [Tenant ID]
+    ,__KEY_thread_message_concat
+    ,__KEY_assistant
+    ,__KEY_app
+	,applymap('assistant_to_spaceid_map',__KEY_assistant,'') 		as __KEY_space_assistant
+    ,applymap('application_to_spaceid_map',__KEY_app,'') 			as __KEY_space_application
+    ,applymap('mcp_to_spaceid_map',__KEY_thread_message_concat,'')	as __KEY_space_mcp
+    ,applymap('audit_answers_to_spaceid_map',__KEY_thread_message_concat,'')	
+    																as __KEY_space_auditAnswers
+resident LinkTable_tmp1;
+    drop table LinkTable_tmp1;                
+
+drop tables assistant_to_spaceid_map
+			,application_to_spaceid_map
+            ,mcp_to_spaceid_map
+            ,audit_answers_to_spaceid_map
+;
+
+let vTableRowCount = alt(NoOfRows('LinkTable'),0);
+
+trace === Dimensions Step 1/8 - Link table: $(vTableRowCount) rows. ===;
+
+
+
+
+
+/*
+	2. Applications
+*/    
+if alt(QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_Applications.qvd'),0) > 0 then
+    Applications:
+    LOAD
+        'app' as sourceTable,
+        __KEY_app,
+        "Application Id",
+        "Application Name",
+        "Application Description",
+        "Application Last Reload Time",
+        "Application Created Date",
+        "Application Last Modified Date",
+        "Application Owner Id",
+        "Application Published?"
+    FROM [$(vQVDFullPath)ai_monitoring_Extract_Applications.qvd]
+    (qvd);
+    
+    left join (Applications)
+    LOAD
+        "User Id" 			as "Application Owner Id",
+        "User Name" 		as "Application Owner Name"
+    FROM [$(vQVDFullPath)ai_monitoring_Extract_Users.qvd]
+    (qvd);
+
+end if
+
+let vTableRowCount = alt(NoOfRows('Applications'),0);
+
+trace === Dimensions Step 2/8 - Applications table: $(vTableRowCount) rows. ===;
+
+
+
+
+
+/*
+	3. Spaces
+*/    
+if alt(QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_Spaces.qvd'),0) > 0 then
+    Spaces:
+    LOAD
+        __KEY_space,
+        "Space Id",
+        "Space Type",
+        "Space Owner Id",
+        "Space Name",
+        "Space Description",
+        "Space Created Date"
+    FROM [$(vQVDFullPath)ai_monitoring_Extract_Spaces.qvd]
+    (qvd);
+
+    left join (Spaces)
+    LOAD
+        "User Id" 			as "Space Owner Id",
+        "User Name" 		as "Space Owner Name"
+    FROM [$(vQVDFullPath)ai_monitoring_Extract_Users.qvd]
+    (qvd);
+
+    let vTableRowCount = alt(NoOfRows('Spaces'),0);
+    trace === Dimensions Step 3/8 - Spaces table $(vTableRowCount) rows. ===;
+else
+	trace === Dimensions Step 3/8 - Spaces table: no data skipping ===;
+end if
+
+
+
+
+
+/*
+	4. Assistant
+*/
+if alt(QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_Assistants.qvd'),0) > 0 then
+    
+    Assistants:
+    LOAD
+        "Assistant Id",
+        __KEY_assistant,
+        "Assistant Name",
+        "Assistant Description",
+        "Assistant Owner Id",
+        "Assistant Created DateTime",
+        "Assistant Updated DateTime",
+        "Assistant Legacy Flag",
+        "Assistant Application Id"
+    FROM [$(vQVDFullPath)ai_monitoring_Extract_Assistants.qvd]
+    (qvd);
+
+    left join (Assistants)
+    LOAD
+        "User Id" 			as "Assistant Owner Id",
+        "User Name" 		as "Assistant Owner Name"
+    FROM [$(vQVDFullPath)ai_monitoring_Extract_Users.qvd]
+    (qvd);
+    
+    let vTableRowCount = alt(NoOfRows('Assistants'),0);
+    trace === Dimensions Step 4/8 - Assistants table $(vTableRowCount) rows. ===;
+else
+	trace === Dimensions Step 4/8 - Assistants table: no data skipping ===;
+end if
+
+
+
+
+
+/*
+	5. Knowledgebases Assistant Link
+*/
+if alt(QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_AssistantKnowledgebase_Link.qvd'),0) > 0 then 
+
+    Assistants_KB_Link:
+    LOAD
+        "Assistant Id",
+        "Knowledgebase Id"
+    FROM [$(vQVDFullPath)ai_monitoring_Extract_AssistantKnowledgebase_Link.qvd]
+    (qvd);
+
+    let vTableRowCount = alt(NoOfRows('Assistants_KB_Link'),0);
+    trace === Dimensions Step 5/8 - Assistants KB Link table $(vTableRowCount) rows. ===;
+else
+	trace === Dimensions Step 5/8 - Assistants KB Link table: no data skipping ===;
+end if
+
+
+
+
+
+/*
+	6. Knowledgebases
+*/
+if alt(QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_Knowledgebases.qvd'),0) > 0 then
+
+    Knowledgebases:
+    LOAD
+    	[Tenant Name]		as [Knowledgebase Tenant Name],
+        id					as [Knowledgebase Id],
+        name				as [Knowledgebase Name],
+        fileCount			as [File Count],
+        effectivePages		as [Page Count],
+        textSize			as [Text Size],
+        ownerId				as [Knowledgebase Owner Id],
+        createdBy			as [Knowledgebase Creator Id],
+        description			as [Knowledgebase Description],
+        spaceId,
+        date(floor([createdAt]),'$(DateFormat)')		as [Knowledgebase Created Date],
+        date(floor([lastIndexedAt]),'$(DateFormat)')	as [Knowledgebase Last Index Date]
+    FROM [$(vQVDFullPath)ai_monitoring_Extract_Knowledgebases.qvd]
+    (qvd);
+ 
+    left join (Knowledgebases)
+    LOAD
+        "User Id" 			as [Knowledgebase Owner Id],
+        "User Name" 		as [Knowledgebase Owner Name]
+    FROM [$(vQVDFullPath)ai_monitoring_Extract_Users.qvd]
+    (qvd);
+
+    left join (Knowledgebases)
+    LOAD
+        "User Id" 			as [Knowledgebase Creator Id],
+        "User Name" 		as [Knowledgebase Creator Name]
+    FROM [$(vQVDFullPath)ai_monitoring_Extract_Users.qvd]
+    (qvd);
+    
+    if alt(QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_Spaces.qvd'),0) > 0 then
+    	
+        left join (Knowledgebases)
+        LOAD
+            __KEY_space		as spaceId,
+//             "Space Type",
+            "Space Name"	as [Knowledgebase Space Name]
+        FROM [$(vQVDFullPath)ai_monitoring_Extract_Spaces.qvd]
+        (qvd);
+
+    end if
+    
+	drop field spaceId from Knowledgebases;
+    
+    let vTableRowCount = alt(NoOfRows('Knowledgebases'),0);
+    trace === Dimensions Step 6/8 - Knowledgebase table $(vTableRowCount) rows. ===;
+else
+	trace === Dimensions Step 6/8 - Knowledgebase table: no data skipping ===;
+end if
+
+
+
+
+
+/*
+	7. Calendar
+*/
+
+cal_MaxDate:
+load
+    max(Date) as maxDate
+resident Fact;
+
+let vMaxDate = Peek('maxDate',0,'cal_MaxDate');
+    drop table cal_MaxDate;
+
+
+
+cal_MinDate:
+load
+    min(Date) as minDate
+resident Fact;
+
+let vMinDate = num(monthstart(peek('minDate',0,'cal_MinDate')));
+    drop table cal_MinDate;
+
+for i = 0 to ($(vMaxDate) - $(vMinDate))
+
+    Calendar_tmp:
+    load
+        date($(vMinDate)+$(i)) as Date
+    AutoGenerate(1);
+
+next i
+
+
+Calendar:
+load *
+    ,autonumber([Year-Month])				as [Month Serial]
+;
+load
+    Date
+    ,day(Date)								as [Day of Month]
+    ,date(monthstart(Date),'YYYY-MMM') 		as [Year-Month]
+    ,month(Date) 							as [Month]
+    ,year(Date) 							as [Year]
+    ,'Q'&quarter(Date) 						as [Quarter]
+    ,'Q'&quarter(Date)&'-'&year(Date) 		as [Quarter-Year]
+resident Calendar_tmp;    
+    drop table Calendar_tmp;
+
+let vTableRowCount = alt(NoOfRows('Calendar'),0);
+trace === Dimensions Step 7/8 - Calendar $(vTableRowCount) rows. ===;
+
+
+
+
+
+// /*
+// 	8. Quota
+// */
+
+// if alt(QvdNoOfRecords('$(vQVDFullPath)ai_monitoring_Extract_Quotas.qvd'),0) > 0 then
+//     Quota:
+//     LOAD
+//         "Monthly Questions Limit",
+//         "Questions Consumed (global)",
+//         "Questions Consumed (local)",
+//         "Date",
+//         [__KEY_thread_message_concat]
+//     FROM [$(vQVDFullPath)ai_monitoring_Extract_Quotas.qvd]
+// 	(qvd);
+
+//     let vTableRowCount = alt(NoOfRows('Quota'),0);
+//     trace === Dimensions Step 8/8 - Quota $(vTableRowCount) rows. ===;
+// else
+// 	trace === Dimensions Step 8/8 - Quota table: no data skipping ===;
+// end if
+
+
+///$tab Multi-Tenant Logic
+if vu_multi_tenant_enabled = 1 then
+
+	FOR i = NoOfTables() - 1 TO 0 STEP -1
+        LET vTableName = TableName($(i));
+        TRACE Storing table: $(vTableName);
+        STORE [$(vTableName)] INTO [$(vMulti_Tenant_Storage_Location)$(vTenantId)/$(vTableName).qvd] (qvd);
+        // DROP TABLE [$(vTableName)];   // Uncomment to drop after storing
+    NEXT i	
+
+end if
+
+
+if vu_multi_tenant_enabled = 1 and vu_is_parent_app = 1 then
+
+    tables_to_pull:
+    load * inline [
+    table_name
+    Fact
+    LinkTable
+    Quota
+    Spaces
+    Assistants_KB_Link
+    Assistants
+    Knowledgebases
+    Applications
+    ];
+
+    let vTableCount = NoOfRows('tables_to_pull');
+    
+
+
+	// loop through every tenant folder
+    for each vTenantPath in DirList('$(vMulti_Tenant_Storage_Location)')
+    	let vTenantId_FromStorage = subfield('$(vTenantPath)','/',-2);
+        if '$(vTenantId)' = '$(vTenantId_FromStorage)' then
+        	trace *** Skipping the directory for this tenant. ***;
+        else
+        	trace *** Pulling data for $(vTenantId_FromStorage). ***;
+            tenants_pulled:
+            load
+                subfield('$(vTenantPath)','/',-2) as tenant_pulled
+            autogenerate 1;
+
+            for i = 0 to ($(vTableCount) - 1)
+                let vTable = peek('table_name',$(i),'tables_to_pull');
+                trace vTable = $(vTable);
+                for each vFile in FileList('$(vTenantPath)')
+                    trace $(vTable), vFile = $(vFile);
+                    vTableNameFromFile = subfield(subfield('$(vFile)','/',-1),'.',1);
+                    trace vTableNameFromFile = $(vTableNameFromFile);
+                    if '$(vTableNameFromFile)' = '$(vTable)' then
+                        if IsNull(TableNumber('$(vTable)')) then
+                            [$(vTable)]:
+                            load
+                                *
+                            from [$(vFile)](qvd);
+                        else
+                        	concatenate($(vTable))
+                            load
+                                *
+                            from [$(vFile)](qvd);
+                      end if
+                    end if
+                next vFile
+            next i
+    	end if  
+    next vTenantPath
+
+	drop table tables_to_pull;
+    
+    
+    // remake calendar for multi-tenant parent apps
+    
+    drop table Calendar;
+    
+    
+    
+    
+    /*
+	 Calendar
+	*/
+
+    cal_MaxDate:
+    load
+        max(Date) as maxDate
+    resident Fact;
+
+    let vMaxDate = Peek('maxDate',0,'cal_MaxDate');
+        drop table cal_MaxDate;
+
+
+
+    cal_MinDate:
+    load
+        min(Date) as minDate
+    resident Fact;
+
+    let vMinDate = num(monthstart(peek('minDate',0,'cal_MinDate')));
+        drop table cal_MinDate;
+
+    for i = 0 to ($(vMaxDate) - $(vMinDate))
+
+        Calendar_tmp:
+        load
+            date($(vMinDate)+$(i)) as Date
+        AutoGenerate(1);
+
+    next i
+
+
+    Calendar:
+    load *
+        ,autonumber([Year-Month])				as [Month Serial]
+    ;
+    load
+        Date
+        ,day(Date)								as [Day of Month]
+        ,date(monthstart(Date),'YYYY-MMM') 		as [Year-Month]
+        ,month(Date) 							as [Month]
+        ,year(Date) 							as [Year]
+        ,'Q'&quarter(Date) 						as [Quarter]
+        ,'Q'&quarter(Date)&'-'&year(Date) 		as [Quarter-Year]
+    resident Calendar_tmp;    
+        drop table Calendar_tmp;
+
+    let vTableRowCount = alt(NoOfRows('Calendar'),0);
+    trace === Multi Tenant Parent - Calendar $(vTableRowCount) rows. ===;
+
+    
+    
+end if
+
+
+///$tab EXIT
+exit script;
+

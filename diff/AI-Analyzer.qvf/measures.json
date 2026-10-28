@@ -1,0 +1,748 @@
+[
+  {
+    "qInfo": {
+      "qId": "0b39ce92-3dc0-4459-af20-7dbba32a3556",
+      "qType": "measure"
+    },
+    "qMeasure": {
+      "qLabel": "Distinct User Count %Var (vs. Prior MTD)",
+      "qDef": "(count(distinct {$\u003c$(vCurrentMonth),$(vQuotaNo)\u003e} [Question Asked By Id])\r\n/\ncount(distinct {$\u003c$(vPriorMonthMTD),$(vQuotaNo)\u003e} [Question Asked By Id]))\n-1",
+      "qGrouping": "N",
+      "qExpressions": [],
+      "qActiveExpression": 0,
+      "qLabelExpression": "='Distinct Users MoM %Var (vs. MTD)'",
+      "qNumFormat": {
+        "qType": "F",
+        "qnDec": 2,
+        "qUseThou": 0,
+        "qFmt": "0.0%",
+        "qDec": ".",
+        "qThou": ","
+      },
+      "qOrigin": "PROGRAM",
+      "isCustomFormatted": false,
+      "numFormatFromTemplate": true,
+      "coloring": {
+        "baseColor": {
+          "color": "#19426c",
+          "index": -1
+        }
+      }
+    },
+    "qMetaDef": {
+      "title": "Distinct User Count %Var (vs. Prior MTD)",
+      "description": "",
+      "tags": []
+    }
+  },
+  {
+    "qInfo": {
+      "qId": "2d1a7c52-73b8-4224-a07a-1dfbc62f1f39",
+      "qType": "measure"
+    },
+    "qMeasure": {
+      "qLabel": "Distinct User Count Var (vs. Prior MTD)",
+      "qDef": "count(distinct {$\u003c$(vCurrentMonth),$(vQuotaNo)\u003e} [Question Asked By Id])\r\n-\ncount(distinct {$\u003c$(vQuotaNo),$(vPriorMonthMTD)\u003e} [Question Asked By Id])",
+      "qGrouping": "N",
+      "qExpressions": [],
+      "qActiveExpression": 0,
+      "qLabelExpression": "='Distinct Users MoM Var (vs. MTD)'",
+      "qNumFormat": {
+        "qType": "F",
+        "qnDec": 2,
+        "qUseThou": 0,
+        "qFmt": "#,##0",
+        "qDec": ".",
+        "qThou": ","
+      },
+      "qOrigin": "PROGRAM",
+      "isCustomFormatted": false,
+      "numFormatFromTemplate": true,
+      "coloring": {
+        "baseColor": {
+          "color": "#19426c",
+          "index": -1
+        }
+      }
+    },
+    "qMetaDef": {
+      "title": "Distinct User Count Var (vs. Prior MTD)",
+      "description": "",
+      "tags": []
+    }
+  },
+  {
+    "qInfo": {
+      "qId": "2d266bbf-b64e-41cc-bfd2-f42b6eee253d",
+      "qType": "measure"
+    },
+    "qMeasure": {
+      "qLabel": "Question Count Var (vs. Prior MTD)",
+      "qDef": "sum({$\u003c$(vCurrentMonth),$(vQuotaNo)\u003e}[Question Count])\r\n-\nsum({$\u003c$(vPriorMonthMTD),$(vQuotaNo)\u003e}[Question Count])",
+      "qGrouping": "N",
+      "qExpressions": [],
+      "qActiveExpression": 0,
+      "qLabelExpression": "='Question Count MoM Var (vs. MTD)'",
+      "qNumFormat": {
+        "qType": "F",
+        "qnDec": 2,
+        "qUseThou": 0,
+        "qFmt": "#,##0",
+        "qDec": ".",
+        "qThou": ","
+      },
+      "qOrigin": "PROGRAM",
+      "isCustomFormatted": false,
+      "coloring": {
+        "baseColor": {
+          "color": "#19426c",
+          "index": -1
+        }
+      }
+    },
+    "qMetaDef": {
+      "title": "Question Count Var (vs. Prior MTD)",
+      "description": "",
+      "tags": []
+    }
+  },
+  {
+    "qInfo": {
+      "qId": "485b86cc-b9fa-4547-a6ac-f3fffe088c2d",
+      "qType": "measure"
+    },
+    "qMeasure": {
+      "qLabel": "% To Quota (Current Month)",
+      "qDef": "sum({$\u003c$(vCurrentMonth),$(vQuotaNo)\u003e}[Question Count])\r\n/\n(\nsum( {$\u003c$(vQuotaYes), $(vCurrentMonth)\u003e}\n\taggr( \n\t\tonly( {$\u003c$(vQuotaYes), $(vCurrentMonth)\u003e} [Monthly Questions Limit] )\n    ,[Month Serial]\n    ,[License Number]\n    )\n)    \n)",
+      "qGrouping": "N",
+      "qExpressions": [],
+      "qActiveExpression": 0,
+      "qLabelExpression": "='% To Quota, '\u0026date(max({$\u003c$(vCurrentMonth)\u003e}Date),'MMM-YYYY')",
+      "qNumFormat": {
+        "qType": "F",
+        "qnDec": 2,
+        "qUseThou": 0,
+        "qFmt": "0.0%",
+        "qDec": ".",
+        "qThou": ","
+      },
+      "qOrigin": "PROGRAM",
+      "isCustomFormatted": false,
+      "numFormatFromTemplate": true,
+      "coloring": {
+        "baseColor": {
+          "color": "#19426c",
+          "index": -1
+        }
+      }
+    },
+    "qMetaDef": {
+      "title": "% To Quota (Current Month)",
+      "description": "",
+      "tags": []
+    }
+  },
+  {
+    "qInfo": {
+      "qId": "4b7ae993-b749-4d5d-9f08-87773fa9eb58",
+      "qType": "measure"
+    },
+    "qMeasure": {
+      "qLabel": "Distinct User Count %Var (vs. Full Month)",
+      "qDef": "(count(distinct {$\u003c$(vCurrentMonth),$(vQuotaNo)\u003e} [Question Asked By Id])\r\n/\ncount(distinct {$\u003c$(vPriorMonthFull),$(vQuotaNo)\u003e} [Question Asked By Id]))\n-1",
+      "qGrouping": "N",
+      "qExpressions": [],
+      "qActiveExpression": 0,
+      "qLabelExpression": "='Distinct Users MoM %Var (vs. Full Month)'",
+      "qNumFormat": {
+        "qType": "F",
+        "qnDec": 2,
+        "qUseThou": 0,
+        "qFmt": "0.0%",
+        "qDec": ".",
+        "qThou": ","
+      },
+      "qOrigin": "PROGRAM",
+      "isCustomFormatted": false,
+      "numFormatFromTemplate": true,
+      "coloring": {
+        "baseColor": {
+          "color": "#19426c",
+          "index": -1
+        }
+      }
+    },
+    "qMetaDef": {
+      "title": "Distinct User Count %Var (vs. Full Month)",
+      "description": "",
+      "tags": []
+    }
+  },
+  {
+    "qInfo": {
+      "qId": "690e446a-f855-4886-9a1e-993326a64115",
+      "qType": "measure"
+    },
+    "qMeasure": {
+      "qLabel": "Question Count %Var (vs. Prior MTD)",
+      "qDef": "(sum({$\u003c$(vCurrentMonth),$(vQuotaNo)\u003e}[Question Count])\r\n/\nsum({$\u003c$(vPriorMonthMTD),$(vQuotaNo)\u003e}[Question Count]))\n-1",
+      "qGrouping": "N",
+      "qExpressions": [],
+      "qActiveExpression": 0,
+      "qLabelExpression": "='Question Count MoM %Var (vs. MTD)'",
+      "qNumFormat": {
+        "qType": "F",
+        "qnDec": 2,
+        "qUseThou": 0,
+        "qFmt": "0.0%",
+        "qDec": ".",
+        "qThou": ","
+      },
+      "qOrigin": "PROGRAM",
+      "isCustomFormatted": false,
+      "coloring": {
+        "baseColor": {
+          "color": "#19426c",
+          "index": -1
+        }
+      }
+    },
+    "qMetaDef": {
+      "title": "Question Count %Var (vs. Prior MTD)",
+      "description": "",
+      "tags": []
+    }
+  },
+  {
+    "qInfo": {
+      "qId": "698af18e-ca1b-4242-be67-7d6d3963940d",
+      "qType": "measure"
+    },
+    "qMeasure": {
+      "qLabel": "Distinct User Count (Prior Full Month)",
+      "qDef": "count(distinct {$\u003c$(vPriorMonthFull),$(vQuotaNo)\u003e} [Question Asked By Id])",
+      "qGrouping": "N",
+      "qExpressions": [],
+      "qActiveExpression": 0,
+      "qLabelExpression": "='Distinct Users, '\u0026date(max({$\u003c$(vPriorMonthFull)\u003e}Date),'MMM-YYYY')\u0026' (Full)'",
+      "qNumFormat": {
+        "qType": "F",
+        "qnDec": 2,
+        "qUseThou": 0,
+        "qFmt": "#,##0",
+        "qDec": ".",
+        "qThou": ","
+      },
+      "qOrigin": "PROGRAM",
+      "isCustomFormatted": false,
+      "numFormatFromTemplate": true,
+      "coloring": {
+        "baseColor": {
+          "color": "#10cfc9",
+          "index": 5
+        }
+      }
+    },
+    "qMetaDef": {
+      "title": "Distinct User Count (Prior Full Month)",
+      "description": "",
+      "tags": []
+    }
+  },
+  {
+    "qInfo": {
+      "qId": "7cb4e801-55ff-458e-919f-feb26f04edf4",
+      "qType": "measure"
+    },
+    "qMeasure": {
+      "qLabel": "Question Sources (Prior Full Month)",
+      "qDef": "count(distinct {$\u003c$(vPriorMonthFull),$(vQuotaNo)\u003e} [Question Source])",
+      "qGrouping": "N",
+      "qExpressions": [],
+      "qActiveExpression": 0,
+      "qLabelExpression": "='Question Sources, '\u0026date(max({$\u003c$(vPriorMonthFull)\u003e}Date),'MMM-YYYY')\u0026' (Full)'",
+      "qNumFormat": {
+        "qType": "F",
+        "qnDec": 2,
+        "qUseThou": 0,
+        "qFmt": "#,##0",
+        "qDec": ".",
+        "qThou": ","
+      },
+      "qOrigin": "PROGRAM",
+      "isCustomFormatted": false,
+      "numFormatFromTemplate": true,
+      "coloring": {
+        "baseColor": {
+          "color": "#10cfc9",
+          "index": 5
+        }
+      }
+    },
+    "qMetaDef": {
+      "title": "Question Sources (Prior Full Month)",
+      "description": "",
+      "tags": []
+    }
+  },
+  {
+    "qInfo": {
+      "qId": "8c2750e6-7024-4255-862e-b3fb1a719099",
+      "qType": "measure"
+    },
+    "qMeasure": {
+      "qLabel": "Question Count (Prior Month MTD)",
+      "qDef": "sum({$\u003c$(vQuotaNo),$(vPriorMonthMTD)\u003e}[Question Count])",
+      "qGrouping": "N",
+      "qExpressions": [],
+      "qActiveExpression": 0,
+      "qLabelExpression": "='Questions, '\u0026date(max({$\u003c$(vPriorMonthMTD)\u003e}Date),'MMM-YYYY')\u0026' (MTD)'",
+      "qNumFormat": {
+        "qType": "F",
+        "qnDec": 2,
+        "qUseThou": 0,
+        "qFmt": "#,##0",
+        "qDec": ".",
+        "qThou": ","
+      },
+      "qOrigin": "PROGRAM",
+      "isCustomFormatted": false,
+      "numFormatFromTemplate": true,
+      "coloring": {
+        "baseColor": {
+          "color": "#10cfc9",
+          "index": 5
+        }
+      }
+    },
+    "qMetaDef": {
+      "title": "Question Count (Prior Month MTD)",
+      "description": "",
+      "tags": []
+    }
+  },
+  {
+    "qInfo": {
+      "qId": "9437adc4-b7c7-4751-ae0d-1417630fd578",
+      "qType": "measure"
+    },
+    "qMeasure": {
+      "qLabel": "% To Quota (Prior Full Month)",
+      "qDef": "sum({$\u003c$(vQuotaNo),$(vPriorMonthFull)\u003e}[Question Count])\r\n/\n(\nsum( {$\u003c$(vQuotaYes), $(vPriorMonthFull)\u003e}\n\taggr( \n\t\tonly( {$\u003c$(vQuotaYes), $(vPriorMonthFull)\u003e} [Monthly Questions Limit] )\n    ,[Month Serial]\n    ,[License Number]\n    )\n)\n)",
+      "qGrouping": "N",
+      "qExpressions": [],
+      "qActiveExpression": 0,
+      "qLabelExpression": "='% To Quota, '\u0026date(max({$\u003c$(vPriorMonthFull)\u003e}Date),'MMM-YYYY')\u0026' (Full)'",
+      "qNumFormat": {
+        "qType": "F",
+        "qnDec": 2,
+        "qUseThou": 0,
+        "qFmt": "0.0%",
+        "qDec": ".",
+        "qThou": ","
+      },
+      "qOrigin": "PROGRAM",
+      "isCustomFormatted": false,
+      "numFormatFromTemplate": true,
+      "coloring": {
+        "baseColor": {
+          "color": "#10cfc9",
+          "index": 5
+        }
+      }
+    },
+    "qMetaDef": {
+      "title": "% To Quota (Prior Full Month)",
+      "description": "",
+      "tags": []
+    }
+  },
+  {
+    "qInfo": {
+      "qId": "95a108a1-80f4-4e6a-be4e-6bc8478d45ef",
+      "qType": "measure"
+    },
+    "qMeasure": {
+      "qLabel": "% To Quota (Prior Month MTD)",
+      "qDef": "sum({$\u003c$(vQuotaNo),$(vPriorMonthMTD)\u003e}[Question Count])\r\n/\n(\nsum( {$\u003c$(vQuotaYes), $(vPriorMonthMTD)\u003e}\n\taggr( \n\t\tonly( {$\u003c$(vQuotaYes), $(vPriorMonthMTD)\u003e} [Monthly Questions Limit] )\n    ,[Month Serial]\n    ,[License Number]\n    )\n)\n)",
+      "qGrouping": "N",
+      "qExpressions": [],
+      "qActiveExpression": 0,
+      "qLabelExpression": "='% To Quota, '\u0026date(max({$\u003c$(vPriorMonthMTD)\u003e}Date),'MMM-YYYY')\u0026' (MTD)'",
+      "qNumFormat": {
+        "qType": "F",
+        "qnDec": 2,
+        "qUseThou": 0,
+        "qFmt": "0.0%",
+        "qDec": ".",
+        "qThou": ","
+      },
+      "qOrigin": "PROGRAM",
+      "isCustomFormatted": false,
+      "numFormatFromTemplate": true,
+      "coloring": {
+        "baseColor": {
+          "color": "#10cfc9",
+          "index": 5
+        }
+      }
+    },
+    "qMetaDef": {
+      "title": "% To Quota (Prior Month MTD)",
+      "description": "",
+      "tags": []
+    }
+  },
+  {
+    "qInfo": {
+      "qId": "9beef893-d79a-4766-ba54-ffa67527feed",
+      "qType": "measure"
+    },
+    "qMeasure": {
+      "qLabel": "Distinct User Count (Prior Month MTD)",
+      "qDef": "count(distinct {$\u003c $(vQuotaNo),$(vPriorMonthMTD)\u003e} [Question Asked By Id])",
+      "qGrouping": "N",
+      "qExpressions": [],
+      "qActiveExpression": 0,
+      "qLabelExpression": "='Distinct Users, '\u0026date(max({$\u003c$(vPriorMonthMTD)\u003e}Date),'MMM-YYYY')\u0026' (MTD)'",
+      "qNumFormat": {
+        "qType": "F",
+        "qnDec": 2,
+        "qUseThou": 0,
+        "qFmt": "#,##0",
+        "qDec": ".",
+        "qThou": ","
+      },
+      "qOrigin": "PROGRAM",
+      "isCustomFormatted": false,
+      "numFormatFromTemplate": true,
+      "coloring": {
+        "baseColor": {
+          "color": "#10cfc9",
+          "index": 5
+        }
+      }
+    },
+    "qMetaDef": {
+      "title": "Distinct User Count (Prior Month MTD)",
+      "description": "",
+      "tags": []
+    }
+  },
+  {
+    "qInfo": {
+      "qId": "9c27e6d5-6f2b-4cd7-bd81-9f034d3e6935",
+      "qType": "measure"
+    },
+    "qMeasure": {
+      "qLabel": "Distinct User Count (Current Month)",
+      "qDef": "count(distinct {$\u003c$(vCurrentMonth),$(vQuotaNo)\u003e} [Question Asked By Id])",
+      "qGrouping": "N",
+      "qExpressions": [],
+      "qActiveExpression": 0,
+      "qLabelExpression": "='Distinct Users, '\u0026date(max({$\u003c$(vCurrentMonth)\u003e}Date),'MMM-YYYY')",
+      "qNumFormat": {
+        "qType": "F",
+        "qnDec": 2,
+        "qUseThou": 0,
+        "qFmt": "#,##0",
+        "qDec": ".",
+        "qThou": ","
+      },
+      "qOrigin": "PROGRAM",
+      "isCustomFormatted": false,
+      "numFormatFromTemplate": true,
+      "coloring": {
+        "baseColor": {
+          "color": "#19426c",
+          "index": -1
+        }
+      }
+    },
+    "qMetaDef": {
+      "title": "Distinct User Count (Current Month)",
+      "description": "",
+      "tags": []
+    }
+  },
+  {
+    "qInfo": {
+      "qId": "Nhpar",
+      "qType": "measure"
+    },
+    "qMeasure": {
+      "qLabel": "Question Count (Prior Full Month)",
+      "qDef": "sum({$\u003c$(vPriorMonthFull),$(vQuotaNo)\u003e}[Question Count])",
+      "qGrouping": "N",
+      "qExpressions": [],
+      "qActiveExpression": 0,
+      "qLabelExpression": "='Questions, '\u0026date(max({$\u003c$(vPriorMonthFull)\u003e}Date),'MMM-YYYY')\u0026' (Full)'",
+      "qNumFormat": {
+        "qType": "F",
+        "qnDec": 2,
+        "qUseThou": 0,
+        "qFmt": "#,##0",
+        "qDec": ".",
+        "qThou": ","
+      },
+      "qOrigin": "PROGRAM",
+      "isCustomFormatted": false,
+      "numFormatFromTemplate": true,
+      "coloring": {
+        "baseColor": {
+          "color": "#10cfc9",
+          "index": 5
+        }
+      }
+    },
+    "qMetaDef": {
+      "title": "Question Count (Prior Full Month)",
+      "description": "",
+      "tags": []
+    }
+  },
+  {
+    "qInfo": {
+      "qId": "YUjPQK",
+      "qType": "measure"
+    },
+    "qMeasure": {
+      "qLabel": "Question Count (All)",
+      "qDef": "sum({$\u003c$(vQuotaNo)\u003e}[Question Count])",
+      "qGrouping": "N",
+      "qExpressions": [],
+      "qActiveExpression": 0,
+      "qNumFormat": {
+        "qType": "F",
+        "qnDec": 2,
+        "qUseThou": 0,
+        "qFmt": "#,##0",
+        "qDec": ".",
+        "qThou": ","
+      },
+      "qOrigin": "PROGRAM",
+      "isCustomFormatted": false,
+      "numFormatFromTemplate": true,
+      "coloring": {}
+    },
+    "qMetaDef": {
+      "title": "Question Count (All)",
+      "description": "",
+      "tags": []
+    }
+  },
+  {
+    "qInfo": {
+      "qId": "aMPtRjw",
+      "qType": "measure"
+    },
+    "qMeasure": {
+      "qLabel": "Question Count Var (vs. Full Month)",
+      "qDef": "sum({$\u003c$(vCurrentMonth),$(vQuotaNo)\u003e}[Question Count])\r\n-\nsum({$\u003c$(vPriorMonthFull),$(vQuotaNo)\u003e}[Question Count])",
+      "qGrouping": "N",
+      "qExpressions": [],
+      "qActiveExpression": 0,
+      "qLabelExpression": "='Question Count MoM Var (vs. Full Month)'",
+      "qNumFormat": {
+        "qType": "F",
+        "qnDec": 2,
+        "qUseThou": 0,
+        "qFmt": "#,##0",
+        "qDec": ".",
+        "qThou": ","
+      },
+      "qOrigin": "PROGRAM",
+      "isCustomFormatted": false,
+      "coloring": {
+        "baseColor": {
+          "color": "#19426c",
+          "index": -1
+        }
+      }
+    },
+    "qMetaDef": {
+      "title": "Question Count Var (vs. Full Month)",
+      "description": "",
+      "tags": []
+    }
+  },
+  {
+    "qInfo": {
+      "qId": "d4009d8a-804b-48d8-abe4-e30002f2710c",
+      "qType": "measure"
+    },
+    "qMeasure": {
+      "qLabel": "Question Sources (Prior Month MTD)",
+      "qDef": "count(distinct {$\u003c$(vQuotaNo),$(vPriorMonthMTD)\u003e} [Question Source])",
+      "qGrouping": "N",
+      "qExpressions": [],
+      "qActiveExpression": 0,
+      "qLabelExpression": "='Question Sources, '\u0026date(max({$\u003c$(vPriorMonthMTD)\u003e}Date),'MMM-YYYY')\u0026' (MTD)'",
+      "qNumFormat": {
+        "qType": "F",
+        "qnDec": 2,
+        "qUseThou": 0,
+        "qFmt": "#,##0",
+        "qDec": ".",
+        "qThou": ","
+      },
+      "qOrigin": "PROGRAM",
+      "isCustomFormatted": false,
+      "numFormatFromTemplate": true,
+      "coloring": {
+        "baseColor": {
+          "color": "#10cfc9",
+          "index": 5
+        }
+      }
+    },
+    "qMetaDef": {
+      "title": "Question Sources (Prior Month MTD)",
+      "description": "",
+      "tags": []
+    }
+  },
+  {
+    "qInfo": {
+      "qId": "d51366e7-0f65-4cfd-9234-259b88343b0e",
+      "qType": "measure"
+    },
+    "qMeasure": {
+      "qLabel": "Distinct User Count Var (vs. Full Month)",
+      "qDef": "count(distinct {$\u003c$(vCurrentMonth),$(vQuotaNo)\u003e} [Question Asked By Id])\r\n-\ncount(distinct {$\u003c$(vPriorMonthFull),$(vQuotaNo)\u003e}[Question Asked By Id])",
+      "qGrouping": "N",
+      "qExpressions": [],
+      "qActiveExpression": 0,
+      "qLabelExpression": "='Distinct Users MoM Var (vs. Full Month)'",
+      "qNumFormat": {
+        "qType": "F",
+        "qnDec": 2,
+        "qUseThou": 0,
+        "qFmt": "#,##0",
+        "qDec": ".",
+        "qThou": ","
+      },
+      "qOrigin": "PROGRAM",
+      "isCustomFormatted": false,
+      "numFormatFromTemplate": true,
+      "coloring": {
+        "baseColor": {
+          "color": "#19426c",
+          "index": -1
+        }
+      }
+    },
+    "qMetaDef": {
+      "title": "Distinct User Count Var (vs. Full Month)",
+      "description": "",
+      "tags": []
+    }
+  },
+  {
+    "qInfo": {
+      "qId": "ffdd225f-2e61-4bc9-a28d-e3c2c8b03053",
+      "qType": "measure"
+    },
+    "qMeasure": {
+      "qLabel": "Question Count %Var (vs. Full Month)",
+      "qDef": "(sum({$\u003c$(vCurrentMonth),$(vQuotaNo)\u003e}[Question Count])\r\n/\nsum({$\u003c$(vPriorMonthFull),$(vQuotaNo)\u003e}[Question Count]))\n-1",
+      "qGrouping": "N",
+      "qExpressions": [],
+      "qActiveExpression": 0,
+      "qLabelExpression": "='Question Count MoM %Var (vs. Full Month)'",
+      "qNumFormat": {
+        "qType": "F",
+        "qnDec": 2,
+        "qUseThou": 0,
+        "qFmt": "0.0%",
+        "qDec": ".",
+        "qThou": ","
+      },
+      "qOrigin": "PROGRAM",
+      "isCustomFormatted": false,
+      "coloring": {
+        "baseColor": {
+          "color": "#19426c",
+          "index": -1
+        }
+      }
+    },
+    "qMetaDef": {
+      "title": "Question Count %Var (vs. Full Month)",
+      "description": "",
+      "tags": []
+    }
+  },
+  {
+    "qInfo": {
+      "qId": "gCAKjh",
+      "qType": "measure"
+    },
+    "qMeasure": {
+      "qLabel": "Question Count (Current Month)",
+      "qDef": "sum({$\u003c$(vCurrentMonth),$(vQuotaNo)\u003e}[Question Count])",
+      "qGrouping": "N",
+      "qExpressions": [],
+      "qActiveExpression": 0,
+      "qLabelExpression": "='Questions, '\u0026date(max({$\u003c$(vCurrentMonth)\u003e}Date),'MMM-YYYY')",
+      "qNumFormat": {
+        "qType": "F",
+        "qnDec": 2,
+        "qUseThou": 0,
+        "qFmt": "#,##0",
+        "qDec": ".",
+        "qThou": ","
+      },
+      "qOrigin": "PROGRAM",
+      "isCustomFormatted": false,
+      "numFormatFromTemplate": true,
+      "coloring": {
+        "baseColor": {
+          "color": "#19426c",
+          "index": -1
+        }
+      }
+    },
+    "qMetaDef": {
+      "title": "Question Count (Current Month)",
+      "description": "",
+      "tags": []
+    }
+  },
+  {
+    "qInfo": {
+      "qId": "pByJW",
+      "qType": "measure"
+    },
+    "qMeasure": {
+      "qLabel": "Question Sources (Current Month)",
+      "qDef": "count(distinct {$\u003c$(vCurrentMonth),$(vQuotaNo)\u003e} [Question Source])",
+      "qGrouping": "N",
+      "qExpressions": [],
+      "qActiveExpression": 0,
+      "qLabelExpression": "='Question Sources, '\u0026date(max({$\u003c$(vCurrentMonth)\u003e}Date),'MMM-YYYY')",
+      "qNumFormat": {
+        "qType": "F",
+        "qnDec": 2,
+        "qUseThou": 0,
+        "qFmt": "#,##0",
+        "qDec": ".",
+        "qThou": ","
+      },
+      "qOrigin": "PROGRAM",
+      "isCustomFormatted": false,
+      "numFormatFromTemplate": true,
+      "coloring": {
+        "baseColor": {
+          "color": "#19426c",
+          "index": -1
+        }
+      }
+    },
+    "qMetaDef": {
+      "title": "Question Sources (Current Month)",
+      "description": "",
+      "tags": []
+    }
+  }
+]
