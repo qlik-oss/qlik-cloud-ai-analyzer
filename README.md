@@ -20,13 +20,13 @@ It provides information such as:
 * **What / How** – the source of each question (e.g. Qlik Answers in a given app, or MCP), and for MCP, which tools are being called, by which user agent, and with what latency
 * **Trends** – monthly usage (current year vs. prior), daily usage (current month vs. prior), and accumulated usage (current month vs. prior)
 
-### Overview sheet
+**Overview sheet**
 
-![Overview sheet in the AI Analyzer](/images/Overview_Sheet.png)
+![Overview sheet in the AI Analyzer](images/Overview%20Sheet.png)
 
-### MCP Detail sheet
+**MCP Detail sheet**
 
-![MCP Detail sheet in the AI Analyzer](/images/MCP_Sheet.png)
+![MCP Detail sheet in the AI Analyzer](images/MCP%20Sheet.png)
 
 ## Installing / Updating
 
