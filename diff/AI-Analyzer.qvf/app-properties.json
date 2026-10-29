@@ -3,7 +3,7 @@
   "qThumbnail": {
     "qUrl": "/api/v1/apps/<appId>/media/files/AI Analyzer Thumbnail.png"
   },
-  "description": "",
+  "description": "The AI Analyzer is a Qlik application built for Qlik Cloud, which helps you to analyze and monitor Qlik Answers and MCP usage across your tenant. It replaces the legacy Answers Analyzer.\n\n{v1.0.0}",
   "qUsage": "ANALYTICS",
   "published": false,
   "hassectionaccess": false

@@ -29,6 +29,7 @@ SET NumericalAbbreviation='3:k;6:M;9:G;12:T;15:P;18:E;21:Z;24:Y;-3:m;-6:μ;-9:n;
 */
 let vDataConnection 			= '';
 
+
 LIB CONNECT TO '$(vDataConnection)';
 /*
 	2. Enter the name of the Space where the resulting QVDs of this app will be stored.  This does
@@ -67,7 +68,7 @@ let vMulti_Tenant_Storage_Location = '';
 // -----------------------------------------------------------------------------------------------
 //
 //
-let vAppVersion					='1.0';
+let vAppVersion					='1.0.0';
 let vTenantName 				= GetSysAttr('tenantUrlAlias');
 let vTenantId					= GetSysAttr('tenantId');
 LET vAuditQueryAddedDate		= MakeDate(2024,9,1); // The audit query date was added mid-September, so the numbers will likely not be whole for that month

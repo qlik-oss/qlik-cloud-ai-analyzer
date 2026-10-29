@@ -368,6 +368,20 @@
   },
   {
     "qInfo": {
+      "qId": "a00373f3-0d2c-409e-8015-110ce01be967",
+      "qType": "variable"
+    },
+    "qMetaDef": {},
+    "qName": "vTableName",
+    "qNumberPresentation": {
+      "qType": "U",
+      "qnDec": 10,
+      "qUseThou": 0
+    },
+    "qDefinition": "Fact"
+  },
+  {
+    "qInfo": {
       "qId": "bee0b622-e8ac-4fa5-8946-d664c0ad1719",
       "qType": "variable"
     },
