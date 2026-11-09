@@ -28,6 +28,17 @@ It provides information such as:
 
 ![MCP Detail sheet in the AI Analyzer](images/MCP%20Sheet.png)
 
+### Answers feedback and knowledge base documents
+
+The app also loads thumbs up and down feedback on Qlik Answers, the knowledge base documents each answer cited, and the full document list of every knowledge base. Four sheets use this data:
+
+* **KB Document Monitoring**: files in knowledge bases, files never cited, share of files cited and citations per knowledge base
+* **Feedback Over Time**: votes by month, vote rate, thumbs-down reasons and the apps votes trace back to
+* **Answers Health**: error rate, where errors happen and questions per active user
+* **Estate Hygiene**: assistants and knowledge bases that are candidates for cleanup
+
+Feedback and citations are re-read for the last `vu_initial_days_back` days (90 by default) on every reload, so late votes are picked up. With `vIncrementalMode = 1`, older rows are kept from the previous reload. See [docs/testing.md](docs/testing.md) for test cases and how to check the numbers against the API.
+
 ## Installing / Updating
 
 These applications can be installed via an interactive Qlik Automate [installer](https://community.qlik.com/t5/Official-Support-Articles/Qlik-Cloud-Monitoring-Apps-Workflow-Guide/ta-p/2134140) or [manually](/../../releases) using the PDF guide.
@@ -68,6 +79,7 @@ The app can also report on AI usage across multiple tenants. In multi-tenant mod
 ## Known limitations
 
 * **Question counts may be slightly lower than actual consumption.** Questions used by Bias detection in Qlik Predict are not yet tracked, so they are not included in the app's question counts.
+* **Feedback and document data is not pulled into multi-tenant parent apps yet.** The new QVDs are not in the parent app's list of tables to pull.
 
 ## Subscription Compatibility
 
