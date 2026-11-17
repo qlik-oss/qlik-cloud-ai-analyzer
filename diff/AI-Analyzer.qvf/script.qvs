@@ -30,7 +30,7 @@ SET NumericalAbbreviation='3:k;6:M;9:G;12:T;15:P;18:E;21:Z;24:Y;-3:m;-6:μ;-9:n;
 let vDataConnection 			= '';
 
 
-LIB CONNECT TO '';
+LIB CONNECT TO '$(vDataConnection)';
 /*
 	2. Enter the name of the Space where the resulting QVDs of this app will be stored.  This does
     not need to be the same space that this app is stored in.
