@@ -30,12 +30,12 @@ SET NumericalAbbreviation='3:k;6:M;9:G;12:T;15:P;18:E;21:Z;24:Y;-3:m;-6:μ;-9:n;
 let vDataConnection 			= '';
 
 
-LIB CONNECT TO '$(vDataConnection)';
+LIB CONNECT TO '';
 /*
 	2. Enter the name of the Space where the resulting QVDs of this app will be stored.  This does
     not need to be the same space that this app is stored in.
 */
-LET vQVDSpaceName				= '';	
+LET vQVDSpaceName				= '';		
 /*
 	3. Enter the name of the folder you wish to store the QVDs in.
 */
@@ -61,7 +61,7 @@ let vu_is_parent_app 			= 0;  // if vu_multi_tenant_enabled=0, the value here is
                                         
 let vMulti_Tenant_Storage_Location = '';
 									// 'lib://<space name>:<cloud storage connection>/<folder name>/'
-                                    
+
 
 
 // No need to touch variables beneath this line
