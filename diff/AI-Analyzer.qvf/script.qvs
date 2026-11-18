@@ -68,7 +68,7 @@ let vMulti_Tenant_Storage_Location = '';
 // -----------------------------------------------------------------------------------------------
 //
 //
-let vAppVersion					='1.0.0';
+let vAppVersion					='1.0.1';
 let vTenantName 				= GetSysAttr('tenantUrlAlias');
 let vTenantId					= GetSysAttr('tenantId');
 LET vAuditQueryAddedDate		= MakeDate(2024,9,1); // The audit query date was added mid-September, so the numbers will likely not be whole for that month
@@ -3973,4 +3973,5 @@ end if
 
 ///$tab EXIT
 exit script;
+
 
