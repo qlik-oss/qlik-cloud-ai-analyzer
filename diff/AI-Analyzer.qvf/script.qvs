@@ -1509,15 +1509,16 @@ trace vAnswersQuestionsQVD_DateFilter = $(vAnswersQuestionsQVD_DateFilter);
         orphaned_threads_source_map:
         mapping load
             [Thread Id]
-            ,if(upper([question_type])='APP','Application'
-            	,if(upper([question_type])='DATA-QUALITY','Qlik Answers'
-                ,if(upper([question_type])='ASSISTANT','Qlik Answers'
+            ,if(upper([question_type])='APP','Qlik Answers - Application'
+            	,if(upper([question_type])='DATA-QUALITY','Qlik Answers - Data Quality'
+                ,if(upper([question_type])='ASSISTANT','Qlik Answers - Assistant'
                 ,if(upper([question_type])='HELP','Help Agent'
-                ,if(upper([question_type])='PREDICT','Qlik Answers'
-                ,if(upper([question_type])='BUSINESS-GLOSSARY','Qlik Answers'
-                ,if(upper([question_type])='DATA-PRODUCT','Qlik Answers'
+                ,if(upper([question_type])='PREDICT','Qlik Answers - Predict'
+                ,if(upper([question_type])='BUSINESS-GLOSSARY','Qlik Answers - Business Glossary'
+                ,if(upper([question_type])='DATA-PRODUCT','Qlik Answers - Data Product'
+                ,if(upper([question_type])='AUTOMATION','Qlik Answers - Automation'
                 ,'Qlik Answers'
-                ))))))) 					as question_type      
+                )))))))) 					as question_type      
         resident orphaned_threads_with_source;
 
         orphaned_threads_asset_id_map:
