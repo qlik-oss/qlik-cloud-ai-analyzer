@@ -680,7 +680,7 @@
       "qGrouping": "H",
       "qFieldDefs": [
         "Question Source",
-        "=if([Question Source]='Qlik Answers - Application'\r\n\t,[Application Name]\n    ,if([Question Source]='MCP'\n    \t,'MCP'\n        ,if([Question Source]='Qlik Answers - Assistant' or [Question Source]='Qlik Answers (Legacy)'\n        \t,[Assistant Name]\n            )))\t"
+        "=if([Question Source]='Qlik Answers - Application' or [Question Source]='Application'\r\n\t,[Application Name]\n    ,if([Question Source]='MCP'\n    \t,'MCP'\n        ,if([Question Source]='Qlik Answers - Assistant' or [Question Source]='Qlik Answers' or [Question Source]='Qlik Answers (Legacy)'\n        \t,[Assistant Name]\n            )))\t"
       ],
       "qFieldLabels": [],
       "qAlias": "Source\u003eAsset Name",
