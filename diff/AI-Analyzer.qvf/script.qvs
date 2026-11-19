@@ -35,7 +35,7 @@ LIB CONNECT TO '$(vDataConnection)';
 	2. Enter the name of the Space where the resulting QVDs of this app will be stored.  This does
     not need to be the same space that this app is stored in.
 */
-LET vQVDSpaceName				= '';	
+LET vQVDSpaceName				= '';		
 /*
 	3. Enter the name of the folder you wish to store the QVDs in.
 */
@@ -61,14 +61,14 @@ let vu_is_parent_app 			= 0;  // if vu_multi_tenant_enabled=0, the value here is
                                         
 let vMulti_Tenant_Storage_Location = '';
 									// 'lib://<space name>:<cloud storage connection>/<folder name>/'
-                                    
+
 
 
 // No need to touch variables beneath this line
 // -----------------------------------------------------------------------------------------------
 //
 //
-let vAppVersion					='1.0.0';
+let vAppVersion					='1.0.1';
 let vTenantName 				= GetSysAttr('tenantUrlAlias');
 let vTenantId					= GetSysAttr('tenantId');
 LET vAuditQueryAddedDate		= MakeDate(2024,9,1); // The audit query date was added mid-September, so the numbers will likely not be whole for that month
@@ -1509,15 +1509,16 @@ trace vAnswersQuestionsQVD_DateFilter = $(vAnswersQuestionsQVD_DateFilter);
         orphaned_threads_source_map:
         mapping load
             [Thread Id]
-            ,if(upper([question_type])='APP','Application'
-            	,if(upper([question_type])='DATA-QUALITY','Qlik Answers'
-                ,if(upper([question_type])='ASSISTANT','Qlik Answers'
+            ,if(upper([question_type])='APP','Qlik Answers - Application'
+            	,if(upper([question_type])='DATA-QUALITY','Qlik Answers - Data Quality'
+                ,if(upper([question_type])='ASSISTANT','Qlik Answers - Assistant'
                 ,if(upper([question_type])='HELP','Help Agent'
-                ,if(upper([question_type])='PREDICT','Qlik Answers'
-                ,if(upper([question_type])='BUSINESS-GLOSSARY','Qlik Answers'
-                ,if(upper([question_type])='DATA-PRODUCT','Qlik Answers'
+                ,if(upper([question_type])='PREDICT','Qlik Answers - Predict'
+                ,if(upper([question_type])='BUSINESS-GLOSSARY','Qlik Answers - Business Glossary'
+                ,if(upper([question_type])='DATA-PRODUCT','Qlik Answers - Data Product'
+                ,if(upper([question_type])='AUTOMATION','Qlik Answers - Automation'
                 ,'Qlik Answers'
-                ))))))) 					as question_type      
+                )))))))) 					as question_type      
         resident orphaned_threads_with_source;
 
         orphaned_threads_asset_id_map:
@@ -3973,4 +3974,5 @@ end if
 
 ///$tab EXIT
 exit script;
+
 
